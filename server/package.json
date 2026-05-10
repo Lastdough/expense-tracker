@@ -7,7 +7,8 @@
     "dev": "tsx watch --ignore=\"../client/**\" src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:deps": "depcruise src"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "dependency-cruiser": "^16.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }
