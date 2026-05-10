@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+coverage
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.tsbuildinfo
+*.log
+
+server/prisma/*.db
+server/prisma/*.db-journal
+client/dist
