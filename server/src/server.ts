@@ -3,50 +3,45 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadConfig, type AppConfig } from './config/env.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 const clientDir = path.resolve(repoRoot, 'client');
 const clientDistDir = path.resolve(clientDir, 'dist');
 
-const PORT = Number(process.env.PORT ?? 3000);
-const isProd = process.env.NODE_ENV === 'production';
-const serveFrontend = process.env.SERVE_FRONTEND === 'true';
-
-const corsOrigins = isProd
-  ? (process.env.CORS_ORIGINS ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-  : ['*'];
-
-function applyCors(req: Request, res: Response, next: NextFunction): void {
-  const origin = req.headers.origin;
-  if (corsOrigins.includes('*')) {
-    res.setHeader('Access-Control-Allow-Origin', origin ?? '*');
-  } else if (origin && corsOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
-  }
-  next();
+function makeCorsMiddleware(corsOrigins: readonly string[]) {
+  const allowAll = corsOrigins.includes('*');
+  return function applyCors(req: Request, res: Response, next: NextFunction): void {
+    const origin = req.headers.origin;
+    if (allowAll) {
+      res.setHeader('Access-Control-Allow-Origin', origin ?? '*');
+    } else if (origin && corsOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  };
 }
 
 async function main(): Promise<void> {
+  const config: AppConfig = loadConfig();
+
   const app = express();
   app.use(express.json());
-  app.use(applyCors);
+  app.use(makeCorsMiddleware(config.corsOrigins));
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
 
-  if (!isProd) {
+  if (!config.isProd) {
     const clientReady = existsSync(path.join(clientDir, 'index.html'));
     if (clientReady) {
       const { createServer: createViteServer } = await import('vite');
@@ -72,7 +67,7 @@ async function main(): Promise<void> {
         '[server] client/index.html not found — frontend disabled. Server is API-only until the client is scaffolded.',
       );
     }
-  } else if (serveFrontend) {
+  } else if (config.serveFrontend) {
     if (!existsSync(clientDistDir)) {
       console.error(
         `[server] SERVE_FRONTEND=true but ${clientDistDir} does not exist. Build the client first.`,
@@ -86,8 +81,8 @@ async function main(): Promise<void> {
     console.log('[server] Serving client/dist as static frontend');
   }
 
-  app.listen(PORT, () => {
-    console.log(`[server] Listening on http://localhost:${PORT}`);
+  app.listen(config.port, () => {
+    console.log(`[server] Listening on http://localhost:${config.port} (${config.nodeEnv})`);
   });
 }
 
