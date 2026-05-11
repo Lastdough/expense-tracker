@@ -2,8 +2,15 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 0 / Milestone A — Scaffolding
-**Last updated:** [update as you progress]
+**Current milestone:** Phase 0 / Milestone C — Persistence wiring
+**Last updated:** 2026-05-11 11:58
+
+> **Carried forward from Milestone A:** the *Three Dockerfiles + `docker-compose.yml`*
+> bullet is the only Milestone A item still open. It's intentionally deferred
+> because it isn't load-bearing until we deploy, but **Phase 0 is not done
+> until that bullet is checked off** — pick it up before declaring Phase 0
+> complete (e.g. between Milestone C and Phase 1, or whenever a deploy is
+> imminent).
 
 ---
 
@@ -23,22 +30,22 @@ Foundation that every later feature drops into.
 
 ### Milestone A — Workspace and skeleton
 
-- [ ] Init git repo, root `package.json` with workspaces (`server`, `client`)
-- [ ] `server/` with TypeScript, tsx, Express, dotenv configured
-- [ ] `client/` with Vite, React 19, TypeScript, Tailwind v4, react-router v7, motion/react, lucide-react
-- [ ] `server.ts` runs Express with Vite as middleware in dev, static-serves `client/dist` in prod (gated by `SERVE_FRONTEND` env var)
-- [ ] Folder structure from CLAUDE.md created (empty placeholders for each context)
-- [ ] `dependency-cruiser` (or `eslint-plugin-boundaries`) configured to enforce the dependency rule; CI fails on violations
+- [x] Init git repo, root `package.json` with workspaces (`server`, `client`)
+- [x] `server/` with TypeScript, tsx, Express, dotenv configured
+- [x] `client/` with Vite, React 19, TypeScript, Tailwind v4, react-router v7, motion/react, lucide-react
+- [x] `server.ts` runs Express with Vite as middleware in dev, static-serves `client/dist` in prod (gated by `SERVE_FRONTEND` env var)
+- [x] Folder structure from CLAUDE.md created (empty placeholders for each context)
+- [x] `dependency-cruiser` (or `eslint-plugin-boundaries`) configured to enforce the dependency rule; CI fails on violations
 - [ ] Three Dockerfiles + `docker-compose.yml` for both deploy modes
-- [ ] `.env.example` and config loader in `server/src/config/`
+- [x] `.env.example` and config loader in `server/src/config/`
 
 ### Milestone B — Shared kernel
 
-- [ ] `Money` value object with full unit tests (add, subtract, multiply, negate, format, currency mismatch errors, integer overflow safety with bigint)
-- [ ] Branded ID types (`ExpenseId`, `CategoryId`, etc.)
-- [ ] `Result<T, E>` type with helpers (`ok`, `err`, `map`, `flatMap`)
-- [ ] Domain event bus interface + in-memory implementation
-- [ ] Base `DomainError` class
+- [x] `Money` value object with full unit tests (add, subtract, multiply, negate, format, currency mismatch errors, integer overflow safety with bigint)
+- [x] Branded ID types (`ExpenseId`, `CategoryId`, etc.)
+- [x] `Result<T, E>` type with helpers (`ok`, `err`, `map`, `flatMap`)
+- [x] Domain event bus interface + in-memory implementation
+- [x] Base `DomainError` class
 
 ### Milestone C — Persistence wiring
 

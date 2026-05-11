@@ -117,6 +117,7 @@ module.exports = {
 
   options: {
     doNotFollow: { path: 'node_modules' },
+    exclude: '\\.(test|spec)\\.ts$',
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {

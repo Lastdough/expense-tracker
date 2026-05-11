@@ -6,6 +6,7 @@
     "dev": "pnpm --filter server dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "lint:deps": "pnpm --filter server lint:deps"
+    "lint:deps": "pnpm --filter server lint:deps",
+    "test": "pnpm -r test"
   }
 }
