@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, type AppConfig } from './config/env.js';
+import { buildContainer } from './container.js';
+import { pingRoutes } from './contexts/expenses/interfaces/http/routes/pingRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -32,6 +34,14 @@ function makeCorsMiddleware(corsOrigins: readonly string[]) {
 
 async function main(): Promise<void> {
   const config: AppConfig = loadConfig();
+  const container = await buildContainer(config);
+
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, async () => {
+      await container.shutdown();
+      process.exit(0);
+    });
+  }
 
   const app = express();
   app.use(express.json());
@@ -40,6 +50,8 @@ async function main(): Promise<void> {
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
+
+  app.use('/api/expenses', pingRoutes(container.pingController));
 
   if (!config.isProd) {
     const clientReady = existsSync(path.join(clientDir, 'index.html'));

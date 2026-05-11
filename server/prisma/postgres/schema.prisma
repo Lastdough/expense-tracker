@@ -1,0 +1,16 @@
+// Production schema. Kept structurally identical to the SQLite schema —
+// when the two drift, that's a bug. Migrations live alongside in ./migrations/.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Ping {
+  id         String   @id
+  message    String
+  recordedAt DateTime @default(now())
+}

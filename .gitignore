@@ -9,9 +9,13 @@ coverage
 *.tsbuildinfo
 *.log
 
-server/prisma/*.db
-server/prisma/*.db-journal
+server/**/*.db
+server/**/*.db-journal
 client/dist
 
 # Claude Code local settings (user-specific permission allowlist etc.)
 .claude/settings.local.json
+
+
+.vscode
+.idea

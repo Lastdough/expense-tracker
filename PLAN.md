@@ -2,8 +2,8 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 0 / Milestone C — Persistence wiring
-**Last updated:** 2026-05-11 11:58
+**Current milestone:** Phase 0 / Milestone C — Persistence wiring (Postgres runtime adapter deferred)
+**Last updated:** 2026-05-11 13:29
 
 > **Carried forward from Milestone A:** the *Three Dockerfiles + `docker-compose.yml`*
 > bullet is the only Milestone A item still open. It's intentionally deferred
@@ -49,13 +49,14 @@ Foundation that every later feature drops into.
 
 ### Milestone C — Persistence wiring
 
-- [ ] Prisma installed with `@prisma/adapter-better-sqlite3`
-- [ ] `schema.sqlite.prisma` and `schema.postgres.prisma` files (start with placeholder model)
-- [ ] Build script that picks the right schema based on `DATABASE_PROVIDER` env var
-- [ ] Migration scripts work for both providers locally
-- [ ] One trivial use case (e.g. `PingExpenses`) flowing through Controller → Use Case → Repository → Prisma, demonstrating the full pattern
-- [ ] `container.ts` composition root wires the example
-- [ ] Vitest configured; one test that injects a fake repo into the use case
+- [x] Prisma installed with `@prisma/adapter-better-sqlite3`
+- [x] `prisma/sqlite/schema.prisma` and `prisma/postgres/schema.prisma` (subfolder layout — see decisions log 2026-05-11)
+- [x] `prisma.config.ts` (new in Prisma 7) routes schema + migrations dir + datasource URL based on `DATABASE_PROVIDER`
+- [x] Migration scripts work for both providers locally (`pnpm db:migrate`, `pnpm db:generate`, `pnpm db:studio`)
+- [x] `PingExpenses` use case flowing through Controller → Use Case → Repository → Prisma → real SQLite read
+- [x] `container.ts` composition root wires the example end-to-end (incl. graceful `prisma.$disconnect` on SIGINT/SIGTERM)
+- [x] Vitest test injects a fake `IPingRepository` into the use case (`PingExpenses.test.ts`)
+- [ ] Wire `@prisma/adapter-pg` for the Postgres runtime path (deferred — schema and migrations work; runtime adapter installs at deploy time)
 
 **Phase 0 done when:** the trivial endpoint returns from a real DB read, the dependency-cruiser CI check passes, and the test suite runs green.
 
@@ -228,3 +229,5 @@ Use this section to record the *why* behind important choices, with date.
 - **2026-05-10** — DDD adopted. App will grow into a ledger; CRUD-shaped code would not survive that.
 - **2026-05-10** — Frontend/backend support both coupled (single container, Express serves React) and decoupled (separate containers) deploy modes from a single codebase.
 - **2026-05-10** — Default currency: IDR (Indonesian Rupiah). Money VO is multi-currency-capable from day one.
+- **2026-05-11** — Prisma schemas live in subfolders (`server/prisma/sqlite/`, `server/prisma/postgres/`) rather than flat files. Prisma derives the migrations dir from the schema location; two schemas in one folder would share a migrations dir. Subfolders give each provider its own migrations history.
+- **2026-05-11** — Prisma 7 moved schema + datasource URL out of `schema.prisma` and into `prisma.config.ts`. One config at server root routes between sqlite/postgres via `DATABASE_PROVIDER`. Side effect: `PrismaClient` no longer accepts `datasourceUrl` — it requires a driver adapter for direct DB connections. `@prisma/adapter-better-sqlite3` for dev; `@prisma/adapter-pg` will be wired at deploy time.

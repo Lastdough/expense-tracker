@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 export type NodeEnv = 'development' | 'production' | 'test';
+export type DatabaseProvider = 'sqlite' | 'postgres';
 
 export interface AppConfig {
   readonly port: number;
@@ -8,9 +9,12 @@ export interface AppConfig {
   readonly isProd: boolean;
   readonly serveFrontend: boolean;
   readonly corsOrigins: readonly string[];
+  readonly databaseProvider: DatabaseProvider;
+  readonly databaseUrl: string;
 }
 
 const NODE_ENVS: readonly NodeEnv[] = ['development', 'production', 'test'];
+const DATABASE_PROVIDERS: readonly DatabaseProvider[] = ['sqlite', 'postgres'];
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -49,14 +53,33 @@ function parseOrigins(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function parseDatabaseProvider(value: string): DatabaseProvider {
+  if (!(DATABASE_PROVIDERS as readonly string[]).includes(value)) {
+    throw new ConfigError(
+      `DATABASE_PROVIDER must be one of ${DATABASE_PROVIDERS.join('|')}; got "${value}"`,
+    );
+  }
+  return value as DatabaseProvider;
+}
+
+function parseDatabaseUrl(value: string | undefined, provider: DatabaseProvider): string {
+  if (!value || value.trim() === '') {
+    throw new ConfigError(`DATABASE_URL is required (provider: ${provider})`);
+  }
+  return value;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const nodeEnv = parseNodeEnv(env.NODE_ENV ?? 'development');
   const isProd = nodeEnv === 'production';
+  const databaseProvider = parseDatabaseProvider(env.DATABASE_PROVIDER ?? 'sqlite');
   return {
     port: parsePort(env.PORT ?? '3000'),
     nodeEnv,
     isProd,
     serveFrontend: parseBool('SERVE_FRONTEND', env.SERVE_FRONTEND, false),
     corsOrigins: isProd ? parseOrigins(env.CORS_ORIGINS) : ['*'],
+    databaseProvider,
+    databaseUrl: parseDatabaseUrl(env.DATABASE_URL, databaseProvider),
   };
 }

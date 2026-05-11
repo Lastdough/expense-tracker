@@ -1,0 +1,6 @@
+-- CreateTable
+CREATE TABLE "Ping" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "message" TEXT NOT NULL,
+    "recordedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

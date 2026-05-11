@@ -1,0 +1,19 @@
+// Dev/local schema. Uses the better-sqlite3 driver adapter at runtime.
+// Wired through container.ts. Migrations live alongside in ./migrations/.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Throwaway placeholder for Milestone C. Proves the wiring
+// Controller -> UseCase -> Repository -> Prisma -> real DB read.
+// Will be removed when the real Expense aggregate lands in Milestone F.
+model Ping {
+  id         String   @id
+  message    String
+  recordedAt DateTime @default(now())
+}

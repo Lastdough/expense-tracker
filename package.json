@@ -8,5 +8,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint:deps": "pnpm --filter server lint:deps",
     "test": "pnpm -r test"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"]
   }
 }
