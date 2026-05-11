@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1.7
+#
+# Decoupled-mode frontend. nginx serves the built React SPA with try_files
+# fallback for client-side routing, and reverse-proxies /api/* to the api
+# container. Pair with Dockerfile.api via docker-compose (profile: decoupled).
+#
+# Build:  docker build -f Dockerfile.web -t expense-tracker-web .
+# Run:    docker run --rm -p 8080:80 -e API_UPSTREAM=http://api:3000 expense-tracker-web
+
+ARG NODE_VERSION=22-alpine
+
+# ── Build stage ─────────────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS builder
+RUN corepack enable
+WORKDIR /repo
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
+COPY client/package.json client/
+COPY server/package.json server/
+RUN pnpm install --frozen-lockfile --filter "client..."
+
+COPY client client
+# Empty string => same origin (nginx reverse-proxies /api). Populated string
+# would mean "call this absolute API URL from the browser" (cross-origin).
+ARG VITE_API_URL=""
+ENV VITE_API_URL=${VITE_API_URL}
+RUN pnpm --filter client build
+
+# ── Runtime stage (nginx) ───────────────────────────────────────────────────
+FROM nginx:1.27-alpine AS runner
+
+# nginx.conf templated by envsubst on container start so API_UPSTREAM is
+# configurable per deployment.
+COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV API_UPSTREAM=http://api:3000
+
+COPY --from=builder /repo/client/dist /usr/share/nginx/html
+
+EXPOSE 80
+# nginx:alpine entrypoint already runs envsubst on /etc/nginx/templates/*.template.

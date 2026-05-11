@@ -1,0 +1,96 @@
+# Local & demo stack for both deploy modes.
+#
+# Usage:
+#   docker compose --profile decoupled up --build   # api + web + postgres
+#   docker compose --profile monolith  up --build   # single-container app
+#   docker compose up postgres -d                   # just the DB (any profile)
+#
+# Compose profiles let one file describe both modes. The `migrate` service is
+# in every app profile and runs `prisma migrate deploy` once before app
+# containers start.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: expense
+      POSTGRES_PASSWORD: expense
+      POSTGRES_DB: expense_tracker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expense -d expense_tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot migration runner. Both `api` and `monolith` block on this.
+  migrate:
+    profiles: ["decoupled", "monolith", "migrate"]
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_PROVIDER: postgres
+      DATABASE_URL: postgresql://expense:expense@postgres:5432/expense_tracker
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    profiles: ["decoupled"]
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SERVE_FRONTEND: "false"
+      DATABASE_PROVIDER: postgres
+      DATABASE_URL: postgresql://expense:expense@postgres:5432/expense_tracker
+      # Web container is the only origin allowed to call /api/* in this stack.
+      CORS_ORIGINS: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    profiles: ["decoupled"]
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        # Empty => the browser hits `/api/...` and nginx proxies to api:3000.
+        VITE_API_URL: ""
+    environment:
+      API_UPSTREAM: http://api:3000
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  monolith:
+    profiles: ["monolith"]
+    build:
+      context: .
+      dockerfile: Dockerfile.monolith
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SERVE_FRONTEND: "true"
+      DATABASE_PROVIDER: postgres
+      DATABASE_URL: postgresql://expense:expense@postgres:5432/expense_tracker
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:

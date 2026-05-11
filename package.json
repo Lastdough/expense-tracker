@@ -2,6 +2,7 @@
   "name": "expense-tracker",
   "version": "0.0.0",
   "private": true,
+  "packageManager": "pnpm@10.11.1",
   "scripts": {
     "dev": "pnpm --filter server dev",
     "build": "pnpm -r build",
@@ -10,6 +11,11 @@
     "test": "pnpm -r test"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3"]
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "better-sqlite3",
+      "esbuild",
+      "prisma"
+    ]
   }
 }

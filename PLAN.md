@@ -2,15 +2,8 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 0 / Milestone C — Persistence wiring (Postgres runtime adapter deferred)
-**Last updated:** 2026-05-11 13:29
-
-> **Carried forward from Milestone A:** the *Three Dockerfiles + `docker-compose.yml`*
-> bullet is the only Milestone A item still open. It's intentionally deferred
-> because it isn't load-bearing until we deploy, but **Phase 0 is not done
-> until that bullet is checked off** — pick it up before declaring Phase 0
-> complete (e.g. between Milestone C and Phase 1, or whenever a deploy is
-> imminent).
+**Current milestone:** Phase 0 complete — moving to Phase 1 / Milestone D
+**Last updated:** 2026-05-11
 
 ---
 
@@ -36,7 +29,7 @@ Foundation that every later feature drops into.
 - [x] `server.ts` runs Express with Vite as middleware in dev, static-serves `client/dist` in prod (gated by `SERVE_FRONTEND` env var)
 - [x] Folder structure from CLAUDE.md created (empty placeholders for each context)
 - [x] `dependency-cruiser` (or `eslint-plugin-boundaries`) configured to enforce the dependency rule; CI fails on violations
-- [ ] Three Dockerfiles + `docker-compose.yml` for both deploy modes
+- [x] Three Dockerfiles (`Dockerfile.api`, `Dockerfile.web`, `Dockerfile.monolith`) + `docker-compose.yml` with `decoupled` / `monolith` profiles, both verified end-to-end against the compose Postgres
 - [x] `.env.example` and config loader in `server/src/config/`
 
 ### Milestone B — Shared kernel
@@ -56,9 +49,9 @@ Foundation that every later feature drops into.
 - [x] `PingExpenses` use case flowing through Controller → Use Case → Repository → Prisma → real SQLite read
 - [x] `container.ts` composition root wires the example end-to-end (incl. graceful `prisma.$disconnect` on SIGINT/SIGTERM)
 - [x] Vitest test injects a fake `IPingRepository` into the use case (`PingExpenses.test.ts`)
-- [ ] Wire `@prisma/adapter-pg` for the Postgres runtime path (deferred — schema and migrations work; runtime adapter installs at deploy time)
+- [x] `@prisma/adapter-pg` wired so the Postgres runtime path connects via a real `PrismaPg` adapter (verified inside the Docker stack)
 
-**Phase 0 done when:** the trivial endpoint returns from a real DB read, the dependency-cruiser CI check passes, and the test suite runs green.
+**Phase 0 done when:** the trivial endpoint returns from a real DB read, the dependency-cruiser CI check passes, and the test suite runs green. **✅ Met 2026-05-11** — `/api/expenses/ping` round-trips against SQLite (local dev) and Postgres (Docker, both `decoupled` and `monolith` profiles).
 
 ---
 
@@ -230,4 +223,6 @@ Use this section to record the *why* behind important choices, with date.
 - **2026-05-10** — Frontend/backend support both coupled (single container, Express serves React) and decoupled (separate containers) deploy modes from a single codebase.
 - **2026-05-10** — Default currency: IDR (Indonesian Rupiah). Money VO is multi-currency-capable from day one.
 - **2026-05-11** — Prisma schemas live in subfolders (`server/prisma/sqlite/`, `server/prisma/postgres/`) rather than flat files. Prisma derives the migrations dir from the schema location; two schemas in one folder would share a migrations dir. Subfolders give each provider its own migrations history.
-- **2026-05-11** — Prisma 7 moved schema + datasource URL out of `schema.prisma` and into `prisma.config.ts`. One config at server root routes between sqlite/postgres via `DATABASE_PROVIDER`. Side effect: `PrismaClient` no longer accepts `datasourceUrl` — it requires a driver adapter for direct DB connections. `@prisma/adapter-better-sqlite3` for dev; `@prisma/adapter-pg` will be wired at deploy time.
+- **2026-05-11** — Prisma 7 moved schema + datasource URL out of `schema.prisma` and into `prisma.config.ts`. One config at server root routes between sqlite/postgres via `DATABASE_PROVIDER`. Side effect: `PrismaClient` no longer accepts `datasourceUrl` — it requires a driver adapter for direct DB connections. `@prisma/adapter-better-sqlite3` for dev, `@prisma/adapter-pg` for prod.
+- **2026-05-11** — Docker images package the whole monorepo per stage and run `pnpm prune --prod` to drop dev deps, instead of using `pnpm deploy`. `pnpm deploy` doesn't preserve the in-place Prisma generated client across the copy, and it requires `--legacy` mode for shared lockfiles. The monorepo-copy approach keeps pnpm's symlink layout intact and ships a working runtime; image-size optimization can come later.
+- **2026-05-11** — `packageManager` pinned to `pnpm@10.11.1` so corepack-installed pnpm in Docker matches local. Without the pin, Docker pulled pnpm 11 which has stricter ignored-builds semantics and a different `deploy` default.

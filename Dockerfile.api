@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1.7
+#
+# Decoupled-mode backend. Runs the Express API only — the frontend is served
+# by a separate nginx container (see Dockerfile.web).
+#
+# Build:  docker build -f Dockerfile.api -t expense-tracker-api .
+# Run:    docker run --rm -p 3000:3000 \
+#           -e DATABASE_PROVIDER=postgres \
+#           -e DATABASE_URL=postgresql://user:pass@host:5432/db \
+#           expense-tracker-api
+
+ARG NODE_VERSION=22-alpine
+
+# ── Build stage ─────────────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS builder
+RUN apk add --no-cache python3 make g++ libc6-compat
+RUN corepack enable
+WORKDIR /repo
+
+# Workspace manifests first so pnpm install can be cached when sources change
+# but deps don't.
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
+COPY server/package.json server/
+COPY client/package.json client/
+RUN pnpm install --frozen-lockfile --filter "server..."
+
+# Bring in the server source and build.
+COPY server server
+
+# Prisma generate + the config loader both need DATABASE_URL set to something
+# parseable at build time, even though no connection is actually made.
+ENV DATABASE_PROVIDER=postgres
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+RUN pnpm --filter server exec prisma generate
+RUN pnpm --filter server build
+
+# Drop dev deps from the server workspace. After this, node_modules only
+# carries what the runtime actually needs. (pnpm prune doesn't accept
+# --filter, so cd into the workspace.)
+RUN cd server && pnpm prune --prod
+
+# ── Runtime stage ───────────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS runner
+RUN apk add --no-cache libc6-compat tini \
+ && addgroup -S app && adduser -S app -G app
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV SERVE_FRONTEND=false
+
+# Bring the pruned monorepo over wholesale — pnpm's symlinked node_modules
+# layout is internally consistent, so it survives the copy intact.
+COPY --from=builder --chown=app:app /repo /app
+WORKDIR /app/server
+USER app
+
+EXPOSE 3000
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/server.js"]

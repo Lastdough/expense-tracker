@@ -9,6 +9,7 @@
 // never inside contexts/*/domain or contexts/*/application.
 
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
 import { type AppConfig } from './config/env.js';
@@ -45,15 +46,8 @@ function createPrismaClient(config: AppConfig): PrismaClient {
       return new PrismaClient({ adapter });
     }
     case 'postgres': {
-      // Prisma 7 requires a driver adapter for direct DB connections — no more
-      // `datasourceUrl`. Wiring @prisma/adapter-pg is deferred to the deploy
-      // milestone; migrations against Postgres still work via `pnpm db:migrate`
-      // because the CLI uses the schema engine, not the runtime client.
-      throw new Error(
-        'Postgres runtime is not wired yet. Install @prisma/adapter-pg + pg and ' +
-          'add a PrismaPg adapter case here. Migration scripts already work — ' +
-          'set DATABASE_PROVIDER=postgres and run `pnpm db:migrate`.',
-      );
+      const adapter = new PrismaPg(config.databaseUrl);
+      return new PrismaClient({ adapter });
     }
   }
 }

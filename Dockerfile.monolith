@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1.7
+#
+# Coupled-mode single-container deploy. The Express server serves both the
+# API and the built React SPA from client/dist (SERVE_FRONTEND=true).
+#
+# Build:  docker build -f Dockerfile.monolith -t expense-tracker-monolith .
+# Run:    docker run --rm -p 3000:3000 \
+#           -e DATABASE_PROVIDER=postgres \
+#           -e DATABASE_URL=postgresql://user:pass@host:5432/db \
+#           -e NODE_ENV=production -e SERVE_FRONTEND=true \
+#           expense-tracker-monolith
+
+ARG NODE_VERSION=22-alpine
+
+# ── Build stage ─────────────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS builder
+RUN apk add --no-cache python3 make g++ libc6-compat
+RUN corepack enable
+WORKDIR /repo
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
+COPY server/package.json server/
+COPY client/package.json client/
+RUN pnpm install --frozen-lockfile
+
+COPY server server
+COPY client client
+
+ENV DATABASE_PROVIDER=postgres
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+RUN pnpm --filter server exec prisma generate
+RUN pnpm --filter server build
+RUN pnpm --filter client build
+
+# Drop dev deps from both workspaces. (pnpm prune doesn't accept --filter,
+# so cd into each workspace.)
+RUN cd server && pnpm prune --prod \
+ && cd ../client && pnpm prune --prod
+
+# ── Runtime stage ───────────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS runner
+RUN apk add --no-cache libc6-compat tini \
+ && addgroup -S app && adduser -S app -G app
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV SERVE_FRONTEND=true
+
+# server.ts resolves clientDir as `../../client` relative to dist/server.js, so
+# /app/server/dist/server.js + ../../client/dist => /app/client/dist. Keeping
+# the monorepo layout makes this Just Work.
+COPY --from=builder --chown=app:app /repo /app
+WORKDIR /app/server
+USER app
+
+EXPOSE 3000
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/server.js"]
