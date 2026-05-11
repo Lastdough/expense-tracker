@@ -13,26 +13,103 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
 import { type AppConfig } from './config/env.js';
+
+// Expenses context (Ping placeholder — deleted in Milestone F)
 import { GetLatestPing } from './contexts/expenses/application/use-cases/GetLatestPing.js';
 import { PingExpenses } from './contexts/expenses/application/use-cases/PingExpenses.js';
 import { PrismaPingRepository } from './contexts/expenses/infrastructure/persistence/prisma/PrismaPingRepository.js';
 import { PingController } from './contexts/expenses/interfaces/http/controllers/PingController.js';
 
+// Categorization context
+import { CreateCategory } from './contexts/categorization/application/use-cases/CreateCategory.js';
+import { RenameCategory } from './contexts/categorization/application/use-cases/RenameCategory.js';
+import { ChangeCategoryColors } from './contexts/categorization/application/use-cases/ChangeCategoryColors.js';
+import { ArchiveCategory } from './contexts/categorization/application/use-cases/ArchiveCategory.js';
+import { UnarchiveCategory } from './contexts/categorization/application/use-cases/UnarchiveCategory.js';
+import { ReorderCategories } from './contexts/categorization/application/use-cases/ReorderCategories.js';
+import { ListCategories } from './contexts/categorization/application/use-cases/ListCategories.js';
+import { PrismaCategoryRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaCategoryRepository.js';
+import { CategoryController } from './contexts/categorization/interfaces/http/controllers/CategoryController.js';
+
+import { CreateMethod } from './contexts/categorization/application/use-cases/CreateMethod.js';
+import { RenameMethod } from './contexts/categorization/application/use-cases/RenameMethod.js';
+import { ChangeMethodColors } from './contexts/categorization/application/use-cases/ChangeMethodColors.js';
+import { ArchiveMethod } from './contexts/categorization/application/use-cases/ArchiveMethod.js';
+import { UnarchiveMethod } from './contexts/categorization/application/use-cases/UnarchiveMethod.js';
+import { ReorderMethods } from './contexts/categorization/application/use-cases/ReorderMethods.js';
+import { ListMethods } from './contexts/categorization/application/use-cases/ListMethods.js';
+import { PrismaMethodRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaMethodRepository.js';
+import { MethodController } from './contexts/categorization/interfaces/http/controllers/MethodController.js';
+
+import { CreateReimbursementStatus } from './contexts/categorization/application/use-cases/CreateReimbursementStatus.js';
+import { RenameReimbursementStatus } from './contexts/categorization/application/use-cases/RenameReimbursementStatus.js';
+import { ChangeReimbursementStatusColors } from './contexts/categorization/application/use-cases/ChangeReimbursementStatusColors.js';
+import { ArchiveReimbursementStatus } from './contexts/categorization/application/use-cases/ArchiveReimbursementStatus.js';
+import { UnarchiveReimbursementStatus } from './contexts/categorization/application/use-cases/UnarchiveReimbursementStatus.js';
+import { ReorderReimbursementStatuses } from './contexts/categorization/application/use-cases/ReorderReimbursementStatuses.js';
+import { ListReimbursementStatuses } from './contexts/categorization/application/use-cases/ListReimbursementStatuses.js';
+import { PrismaReimbursementStatusRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaReimbursementStatusRepository.js';
+import { ReimbursementStatusController } from './contexts/categorization/interfaces/http/controllers/ReimbursementStatusController.js';
+
 export interface Container {
   readonly pingController: PingController;
+  readonly categoryController: CategoryController;
+  readonly methodController: MethodController;
+  readonly reimbursementStatusController: ReimbursementStatusController;
   shutdown(): Promise<void>;
 }
 
 export async function buildContainer(config: AppConfig): Promise<Container> {
   const prisma = createPrismaClient(config);
 
+  // Expenses (Ping placeholder)
   const pingRepository = new PrismaPingRepository(prisma);
-  const pingExpenses = new PingExpenses(pingRepository);
-  const getLatestPing = new GetLatestPing(pingRepository);
-  const pingController = new PingController(pingExpenses, getLatestPing);
+  const pingController = new PingController(
+    new PingExpenses(pingRepository),
+    new GetLatestPing(pingRepository),
+  );
+
+  // Categorization — Category
+  const categoryRepo = new PrismaCategoryRepository(prisma);
+  const categoryController = new CategoryController({
+    list: new ListCategories(categoryRepo),
+    create: new CreateCategory(categoryRepo),
+    rename: new RenameCategory(categoryRepo),
+    changeColors: new ChangeCategoryColors(categoryRepo),
+    archive: new ArchiveCategory(categoryRepo),
+    unarchive: new UnarchiveCategory(categoryRepo),
+    reorder: new ReorderCategories(categoryRepo),
+  });
+
+  // Categorization — Method
+  const methodRepo = new PrismaMethodRepository(prisma);
+  const methodController = new MethodController({
+    list: new ListMethods(methodRepo),
+    create: new CreateMethod(methodRepo),
+    rename: new RenameMethod(methodRepo),
+    changeColors: new ChangeMethodColors(methodRepo),
+    archive: new ArchiveMethod(methodRepo),
+    unarchive: new UnarchiveMethod(methodRepo),
+    reorder: new ReorderMethods(methodRepo),
+  });
+
+  // Categorization — ReimbursementStatus
+  const reimbursementStatusRepo = new PrismaReimbursementStatusRepository(prisma);
+  const reimbursementStatusController = new ReimbursementStatusController({
+    list: new ListReimbursementStatuses(reimbursementStatusRepo),
+    create: new CreateReimbursementStatus(reimbursementStatusRepo),
+    rename: new RenameReimbursementStatus(reimbursementStatusRepo),
+    changeColors: new ChangeReimbursementStatusColors(reimbursementStatusRepo),
+    archive: new ArchiveReimbursementStatus(reimbursementStatusRepo),
+    unarchive: new UnarchiveReimbursementStatus(reimbursementStatusRepo),
+    reorder: new ReorderReimbursementStatuses(reimbursementStatusRepo),
+  });
 
   return {
     pingController,
+    categoryController,
+    methodController,
+    reimbursementStatusController,
     async shutdown() {
       await prisma.$disconnect();
     },

@@ -17,3 +17,47 @@ model Ping {
   message    String
   recordedAt DateTime @default(now())
 }
+
+// ── Categorization context ──────────────────────────────────────────────────
+// Reference data for expenses. Archive, never delete — historical expenses
+// continue to reference these rows by id. See CLAUDE.md "Reference data uses
+// archive, not delete".
+//
+// `nameNormalized` carries the lowercased version for the unique index;
+// `name` keeps the original casing the user typed.
+
+model Category {
+  id             String  @id
+  name           String
+  nameNormalized String  @unique
+  bgColor        String
+  textColor      String
+  isArchived     Boolean @default(false)
+  displayOrder   Int
+
+  @@index([displayOrder])
+}
+
+model Method {
+  id             String  @id
+  name           String
+  nameNormalized String  @unique
+  bgColor        String
+  textColor      String
+  isArchived     Boolean @default(false)
+  displayOrder   Int
+
+  @@index([displayOrder])
+}
+
+model ReimbursementStatus {
+  id             String  @id
+  name           String
+  nameNormalized String  @unique
+  bgColor        String
+  textColor      String
+  isArchived     Boolean @default(false)
+  displayOrder   Int
+
+  @@index([displayOrder])
+}

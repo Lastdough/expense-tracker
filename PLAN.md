@@ -2,7 +2,7 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 0 complete — moving to Phase 1 / Milestone D
+**Current milestone:** Phase 1 / Milestone D — Categorization context (D.1 backend complete; D.2 frontend Settings page next)
 **Last updated:** 2026-05-11
 
 ---
@@ -61,14 +61,14 @@ Goal: stop using Sheets for new entries.
 
 ### Milestone D — Categorization context
 
-- [ ] Aggregates: `Category`, `Method`, `ReimbursementStatus`
-- [ ] Each: `id`, `name`, `bgColor`, `textColor`, `isArchived`, `displayOrder`
-- [ ] Repositories with Prisma implementations
-- [ ] CRUD use cases (Create, Rename, ChangeColors, Archive, Reorder)
-- [ ] HTTP endpoints
-- [ ] Seed script using the exact tables in CLAUDE.md
-- [ ] Frontend Settings page with full CRUD UI
-- [ ] Inline "+ Add new..." option at the bottom of every dropdown
+- [x] Aggregates: `Category`, `Method`, `ReimbursementStatus`
+- [x] Each: `id`, `name`, `bgColor`, `textColor`, `isArchived`, `displayOrder` (+ `nameNormalized` for case-insensitive uniqueness)
+- [x] Repositories with Prisma implementations
+- [x] CRUD use cases (Create, Rename, ChangeColors, Archive/Unarchive, Reorder, List) — 7 per aggregate × 3 aggregates = 21
+- [x] HTTP endpoints under `/api/categories`, `/api/methods`, `/api/reimbursement-statuses`
+- [x] Seed script (`pnpm --filter server seed`) — idempotent upsert by normalized name, exact colors from CLAUDE.md
+- [ ] Frontend Settings page with full CRUD UI *(D.2 — next commit)*
+- [ ] Inline "+ Add new..." option at the bottom of every dropdown *(deferred to Milestone I when Quick-Add screen consumes the dropdown component)*
 
 ### Milestone E — Formula evaluator
 
