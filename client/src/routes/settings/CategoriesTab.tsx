@@ -17,7 +17,9 @@ export function CategoriesTab({ onSuccess, onError, onCountChange }: CategoriesT
   const data = useReferenceData<CategoryView>(categoriesApi, onError, onSuccess);
   const [showArchived, setShowArchived] = useState(false);
   const [drawer, setDrawer] = useState<
-    { mode: 'create' } | { mode: 'edit'; item: CategoryView } | null
+    | { mode: 'create' }
+    | { mode: 'edit'; item: CategoryView; target?: 'bg' | 'text' | undefined }
+    | null
   >(null);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function CategoriesTab({ onSuccess, onError, onCountChange }: CategoriesT
         showArchived={showArchived}
         onShowArchivedChange={setShowArchived}
         onAdd={() => setDrawer({ mode: 'create' })}
-        onEdit={(item) => setDrawer({ mode: 'edit', item })}
+        onEdit={(item, target) => setDrawer({ mode: 'edit', item, target })}
         onRename={(item, name) => {
           void data.update(item.id, {
             name,
@@ -86,6 +88,7 @@ export function CategoriesTab({ onSuccess, onError, onCountChange }: CategoriesT
         mode={drawer?.mode === 'edit' ? 'edit' : 'create'}
         singularLabel="Category"
         initial={initialValues}
+        initialTarget={drawer?.mode === 'edit' ? drawer.target : undefined}
         onClose={() => setDrawer(null)}
         onSubmit={handleSubmit}
       />

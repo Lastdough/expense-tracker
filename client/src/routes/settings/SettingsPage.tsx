@@ -68,7 +68,7 @@ export default function SettingsPage() {
             place; archive instead of delete to preserve history.
           </p>
         </div>
-        <nav className="mt-5 flex gap-1 overflow-x-auto" aria-label="Settings sections">
+        <nav className="mt-5 flex gap-1 overflow-x-auto overflow-y-hidden" aria-label="Settings sections">
           {TABS.map((t) => {
             const active = tab === t.id;
             return (

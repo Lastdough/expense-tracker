@@ -17,7 +17,9 @@ export function StatusesTab({ onSuccess, onError, onCountChange }: StatusesTabPr
   const data = useReferenceData<ReimbursementStatusView>(statusesApi, onError, onSuccess);
   const [showArchived, setShowArchived] = useState(false);
   const [drawer, setDrawer] = useState<
-    { mode: 'create' } | { mode: 'edit'; item: ReimbursementStatusView } | null
+    | { mode: 'create' }
+    | { mode: 'edit'; item: ReimbursementStatusView; target?: 'bg' | 'text' | undefined }
+    | null
   >(null);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function StatusesTab({ onSuccess, onError, onCountChange }: StatusesTabPr
         showArchived={showArchived}
         onShowArchivedChange={setShowArchived}
         onAdd={() => setDrawer({ mode: 'create' })}
-        onEdit={(item) => setDrawer({ mode: 'edit', item })}
+        onEdit={(item, target) => setDrawer({ mode: 'edit', item, target })}
         onRename={(item, name) => {
           void data.update(item.id, {
             name,
@@ -86,6 +88,7 @@ export function StatusesTab({ onSuccess, onError, onCountChange }: StatusesTabPr
         mode={drawer?.mode === 'edit' ? 'edit' : 'create'}
         singularLabel="Status"
         initial={initialValues}
+        initialTarget={drawer?.mode === 'edit' ? drawer.target : undefined}
         onClose={() => setDrawer(null)}
         onSubmit={handleSubmit}
       />

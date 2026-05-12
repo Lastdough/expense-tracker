@@ -20,13 +20,15 @@ import { Archive, GripVertical, RotateCcw } from 'lucide-react';
 import type { ReferenceView } from '../../../api/types';
 import { Chip } from './Chip';
 
+type ColorTarget = 'bg' | 'text';
+
 interface ReferenceTableProps<T extends ReferenceView> {
   readonly items: ReadonlyArray<T>;
   readonly singularLabel: string;
   readonly showArchived: boolean;
   readonly onShowArchivedChange: (next: boolean) => void;
   readonly onAdd: () => void;
-  readonly onEdit: (item: T) => void;
+  readonly onEdit: (item: T, target?: ColorTarget) => void;
   readonly onRename: (item: T, name: string) => void;
   readonly onArchive: (item: T) => void;
   readonly onUnarchive: (item: T) => void;
@@ -109,7 +111,7 @@ export function ReferenceTable<T extends ReferenceView>({
                 key={item.id}
                 item={item}
                 order={i + 1}
-                onEdit={() => onEdit(item)}
+                onEdit={(target) => onEdit(item, target)}
                 onRename={(name) => onRename(item, name)}
                 onArchive={() => onArchive(item)}
               />
@@ -138,7 +140,7 @@ export function ReferenceTable<T extends ReferenceView>({
             <ArchivedRow
               key={item.id}
               item={item}
-              onEdit={() => onEdit(item)}
+              onEdit={(target) => onEdit(item, target)}
               onUnarchive={() => onUnarchive(item)}
             />
           ))}
@@ -151,7 +153,7 @@ export function ReferenceTable<T extends ReferenceView>({
 interface RowProps<T extends ReferenceView> {
   readonly item: T;
   readonly order: number;
-  readonly onEdit: () => void;
+  readonly onEdit: (target?: ColorTarget) => void;
   readonly onRename: (name: string) => void;
   readonly onArchive: () => void;
 }
@@ -222,8 +224,8 @@ function SortableRow<T extends ReferenceView>({
           className="w-full bg-transparent text-[13.5px] font-medium px-1.5 -mx-1.5 py-0.5 rounded outline-none border border-transparent hover:border-line focus:border-ink focus:bg-white transition"
         />
       </div>
-      <ColorDot hex={item.bgColor} onClick={onEdit} />
-      <ColorDot hex={item.textColor} onClick={onEdit} />
+      <ColorDot hex={item.bgColor} onClick={() => onEdit('bg')} />
+      <ColorDot hex={item.textColor} onClick={() => onEdit('text')} />
       <div className="text-right font-mono text-[12px] text-ink-3">{order}</div>
       <div className="flex justify-end">
         <button
@@ -246,7 +248,7 @@ function ArchivedRow<T extends ReferenceView>({
   onUnarchive,
 }: {
   readonly item: T;
-  readonly onEdit: () => void;
+  readonly onEdit: (target?: ColorTarget) => void;
   readonly onUnarchive: () => void;
 }) {
   return (
@@ -258,8 +260,8 @@ function ArchivedRow<T extends ReferenceView>({
         <Chip token={item} size="md" />
       </div>
       <div className="font-medium truncate pr-3 italic">{item.name}</div>
-      <ColorDot hex={item.bgColor} onClick={onEdit} />
-      <ColorDot hex={item.textColor} onClick={onEdit} />
+      <ColorDot hex={item.bgColor} onClick={() => onEdit('bg')} />
+      <ColorDot hex={item.textColor} onClick={() => onEdit('text')} />
       <div className="text-right font-mono text-[12px] text-ink-3">—</div>
       <div className="flex justify-end">
         <button

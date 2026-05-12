@@ -19,13 +19,15 @@ import { CSS } from '@dnd-kit/utilities';
 import { Archive, GripVertical, RotateCcw } from 'lucide-react';
 import type { ReferenceView } from '../../../api/types';
 
+type ColorTarget = 'bg' | 'text';
+
 interface SwatchGridProps<T extends ReferenceView> {
   readonly items: ReadonlyArray<T>;
   readonly singularLabel: string;
   readonly showArchived: boolean;
   readonly onShowArchivedChange: (next: boolean) => void;
   readonly onAdd: () => void;
-  readonly onEdit: (item: T) => void;
+  readonly onEdit: (item: T, target?: ColorTarget) => void;
   readonly onRename: (item: T, name: string) => void;
   readonly onArchive: (item: T) => void;
   readonly onUnarchive: (item: T) => void;
@@ -91,7 +93,7 @@ export function SwatchGrid<T extends ReferenceView>({
               <SortableCard
                 key={item.id}
                 item={item}
-                onEdit={() => onEdit(item)}
+                onEdit={(target) => onEdit(item, target)}
                 onRename={(name) => onRename(item, name)}
                 onArchive={() => onArchive(item)}
               />
@@ -122,7 +124,7 @@ export function SwatchGrid<T extends ReferenceView>({
               <ArchivedCard
                 key={item.id}
                 item={item}
-                onEdit={() => onEdit(item)}
+                onEdit={(target) => onEdit(item, target)}
                 onUnarchive={() => onUnarchive(item)}
               />
             ))}
@@ -135,7 +137,7 @@ export function SwatchGrid<T extends ReferenceView>({
 
 interface CardProps<T extends ReferenceView> {
   readonly item: T;
-  readonly onEdit: () => void;
+  readonly onEdit: (target?: ColorTarget) => void;
   readonly onRename: (name: string) => void;
   readonly onArchive: () => void;
 }
@@ -224,8 +226,8 @@ function SortableCard<T extends ReferenceView>({
           className="w-full bg-transparent text-[14px] font-semibold tracking-tight px-2 -mx-2 py-1 rounded outline-none border border-transparent hover:border-line focus:border-ink focus:bg-paper-2/50 transition"
         />
         <div className="flex items-center gap-1.5">
-          <ColorDot hex={item.bgColor} onClick={onEdit} />
-          <ColorDot hex={item.textColor} onClick={onEdit} />
+          <ColorDot hex={item.bgColor} onClick={() => onEdit('bg')} />
+          <ColorDot hex={item.textColor} onClick={() => onEdit('text')} />
         </div>
       </div>
     </div>
@@ -238,7 +240,7 @@ function ArchivedCard<T extends ReferenceView>({
   onUnarchive,
 }: {
   readonly item: T;
-  readonly onEdit: () => void;
+  readonly onEdit: (target?: ColorTarget) => void;
   readonly onUnarchive: () => void;
 }) {
   return (
@@ -257,7 +259,7 @@ function ArchivedCard<T extends ReferenceView>({
       <div className="p-3 flex items-center gap-2">
         <button
           type="button"
-          onClick={onEdit}
+          onClick={() => onEdit()}
           className="text-[12px] font-medium text-ink-2 hover:text-ink underline-offset-2 hover:underline"
         >
           Edit
