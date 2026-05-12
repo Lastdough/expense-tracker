@@ -1,1 +1,22 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --color-ink: #0a0908;
+  --color-ink-2: #44403c;
+  --color-ink-3: #78716c;
+  --color-paper: #fafaf7;
+  --color-paper-2: #f2efe8;
+  --color-line: #e3ddd0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}

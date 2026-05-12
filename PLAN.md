@@ -2,7 +2,7 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 1 / Milestone D — Categorization context (D.1 backend complete; D.2 frontend Settings page next)
+**Current milestone:** Phase 1 / Milestone E — Formula evaluator (Milestone D complete: D.1 backend + D.2 Settings UI shipped)
 **Last updated:** 2026-05-11
 
 ---
@@ -67,7 +67,7 @@ Goal: stop using Sheets for new entries.
 - [x] CRUD use cases (Create, Rename, ChangeColors, Archive/Unarchive, Reorder, List) — 7 per aggregate × 3 aggregates = 21
 - [x] HTTP endpoints under `/api/categories`, `/api/methods`, `/api/reimbursement-statuses`
 - [x] Seed script (`pnpm --filter server seed`) — idempotent upsert by normalized name, exact colors from CLAUDE.md
-- [ ] Frontend Settings page with full CRUD UI *(D.2 — next commit)*
+- [x] Frontend Settings page with full CRUD UI *(D.2 — `/settings` with three tabs: Categories table, Methods swatch grid, Statuses table; drag-to-reorder via @dnd-kit; native color picker + hex; responsive shell with side-rail/bottom-tabs; placeholder pages for other destinations)*
 - [ ] Inline "+ Add new..." option at the bottom of every dropdown *(deferred to Milestone I when Quick-Add screen consumes the dropdown component)*
 
 ### Milestone E — Formula evaluator

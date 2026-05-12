@@ -1,13 +1,23 @@
-import { Wallet } from 'lucide-react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { Layout } from './shell/Layout';
+import QuickAddPlaceholder from './routes/QuickAddPlaceholder';
+import ExpensesPlaceholder from './routes/ExpensesPlaceholder';
+import DashboardPlaceholder from './routes/DashboardPlaceholder';
+import ReceiptPlaceholder from './routes/ReceiptPlaceholder';
+import SettingsPage from './routes/settings/SettingsPage';
 
 export default function App() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-      <div className="flex flex-col items-center gap-4 p-8">
-        <Wallet className="h-12 w-12 text-blue-700" aria-hidden />
-        <h1 className="text-3xl font-semibold tracking-tight">Expense Tracker</h1>
-        <p className="text-sm text-slate-600">Phase 0 scaffolding is live.</p>
-      </div>
-    </main>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<Navigate to="/settings" replace />} />
+        <Route path="quick-add" element={<QuickAddPlaceholder />} />
+        <Route path="expenses" element={<ExpensesPlaceholder />} />
+        <Route path="dashboard" element={<DashboardPlaceholder />} />
+        <Route path="receipt" element={<ReceiptPlaceholder />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/settings" replace />} />
+      </Route>
+    </Routes>
   );
 }
