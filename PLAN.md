@@ -74,12 +74,9 @@ Goal: stop using Sheets for new entries.
 - [x] Duplicated Code in Server Controller, make a controller factory *(makeReferenceController<T> + shared helpers — parseBody, readIdParam, respondOne/Many; collapses 3 controllers to 1)*
 - [x] Warnings -> Referenced UMD Global Variable in @RefenrencesTable.tsx, @SwatchGrid.tsx, and useInLineRename.ts *(fixed on refactor/settings-dedup — named type imports for ChangeEvent/KeyboardEvent/CSSProperties)*
 - [x] Duplicated Code in Server Routes *(referenceRoutes(controller) reused across /api/categories, /api/methods, /api/reimbursement-statuses)*
-- [ ] Duplicated Test file 
-- [ ] Deprecated Zod uuid() @categorizationSchemas.ts
-- [ ] Error @prisma.config.ts (search for a possible solution before executing it)
-  - TS1259: Module "node:path" can only be default-imported using the esModuleInterop flag
-  - TS1343: The import.meta meta-property is only allowed when the --module option is es2020, es2022, esnext, system, node16, node18, node20, or nodenext
-  - unused export define config
+- [x] Duplicated Test file *(extracted runReferenceEntityContract; Method/Status tests collapsed to 7-line spec invocations; coverage 109 → 140 tests)*
+- [x] Deprecated Zod uuid() @categorizationSchemas.ts *(z.string().uuid() → z.uuid())*
+- [x] Error @prisma.config.ts *(root cause: file was outside tsconfig.json's include glob so the editor's TS server fell back to defaults. Fixed via project references: tsconfig.json now a references root pointing at tsconfig.app.json (src/) and tsconfig.tooling.json (prisma.config.ts + vitest.config.ts, noEmit); scripts switched to `tsc -b`)*
 
 ### Milestone E — Formula evaluator
 

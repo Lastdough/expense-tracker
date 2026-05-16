@@ -21,6 +21,7 @@ if (provider !== 'sqlite' && provider !== 'postgres') {
 
 const providerDir = path.join(__dirname, 'prisma', provider);
 
+// noinspection JSUnusedGlobalSymbols -- consumed by the Prisma CLI, not by in-repo code
 export default defineConfig({
   schema: path.join(providerDir, 'schema.prisma'),
   migrations: { path: path.join(providerDir, 'migrations') },
