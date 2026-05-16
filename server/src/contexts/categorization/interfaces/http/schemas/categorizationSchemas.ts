@@ -22,7 +22,7 @@ export const ChangeColorsBody = z.object({
 });
 
 export const ReorderBody = z.object({
-  ids: z.array(z.string().uuid()).min(1),
+  ids: z.array(z.uuid()).min(1),
 });
 
 export type CreateBody = z.infer<typeof CreateBody>;
