@@ -19,6 +19,7 @@ export class PrismaReimbursementStatusRepository implements IReimbursementStatus
         textColor: row.textColor,
         isArchived: row.isArchived,
         displayOrder: row.displayOrder,
+        // `kind` intentionally omitted — immutable after creation.
       },
     });
   }

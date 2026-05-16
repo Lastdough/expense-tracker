@@ -1,9 +1,15 @@
 import { type ReimbursementStatusId } from '../value-objects/ReimbursementStatusId.js';
+import {
+  isReimbursementStatusKind,
+  type ReimbursementStatusKind,
+} from '../value-objects/ReimbursementStatusKind.js';
 
 // Reimbursement status menu (Non-Reimbursable, Unpaid Reimbursable, ...).
 // The actual state-machine behavior lives in the `reimbursements` bounded
 // context as a value object — this aggregate is just the catalog the UI
-// pulls names + colors from.
+// pulls names + colors from. `kind` is the stable discriminator the
+// reimbursements context maps to its ReimbursementState; immutable after
+// creation so user renames in Settings can't break that mapping.
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -15,6 +21,7 @@ export class ReimbursementStatus {
     private _textColor: string,
     private _isArchived: boolean,
     private _displayOrder: number,
+    public readonly kind: ReimbursementStatusKind,
   ) {}
 
   static create(args: {
@@ -24,11 +31,16 @@ export class ReimbursementStatus {
     textColor: string;
     displayOrder: number;
     isArchived?: boolean;
+    kind?: ReimbursementStatusKind;
   }): ReimbursementStatus {
     const name = ReimbursementStatus.assertName(args.name);
     ReimbursementStatus.assertHexColor(args.bgColor, 'bgColor');
     ReimbursementStatus.assertHexColor(args.textColor, 'textColor');
     ReimbursementStatus.assertDisplayOrder(args.displayOrder);
+    const kind = args.kind ?? 'NonReimbursable';
+    if (!isReimbursementStatusKind(kind)) {
+      throw new RangeError(`ReimbursementStatus kind invalid; got "${String(kind)}"`);
+    }
     return new ReimbursementStatus(
       args.id,
       name,
@@ -36,6 +48,7 @@ export class ReimbursementStatus {
       args.textColor,
       args.isArchived ?? false,
       args.displayOrder,
+      kind,
     );
   }
 

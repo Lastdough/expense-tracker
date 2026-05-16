@@ -16,6 +16,7 @@ import { Method } from './contexts/categorization/domain/entities/Method.js';
 import { MethodId } from './contexts/categorization/domain/value-objects/MethodId.js';
 import { ReimbursementStatus } from './contexts/categorization/domain/entities/ReimbursementStatus.js';
 import { ReimbursementStatusId } from './contexts/categorization/domain/value-objects/ReimbursementStatusId.js';
+import { type ReimbursementStatusKind } from './contexts/categorization/domain/value-objects/ReimbursementStatusKind.js';
 import { PrismaCategoryRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaCategoryRepository.js';
 import { PrismaMethodRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaMethodRepository.js';
 import { PrismaReimbursementStatusRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaReimbursementStatusRepository.js';
@@ -27,6 +28,10 @@ interface SeedRow {
   readonly name: string;
   readonly bgColor: string;
   readonly textColor: string;
+}
+
+interface ReimbursementStatusSeedRow extends SeedRow {
+  readonly kind: ReimbursementStatusKind;
 }
 
 const CATEGORIES: readonly SeedRow[] = [
@@ -51,12 +56,12 @@ const METHODS: readonly SeedRow[] = [
   { name: 'Cash', bgColor: '#e8eaed', textColor: '#000000' },
 ];
 
-const REIMBURSEMENT_STATUSES: readonly SeedRow[] = [
-  { name: 'Non-Reimbursable', bgColor: '#e8eaed', textColor: '#000000' },
-  { name: 'Unpaid Reimbursable', bgColor: '#ffe5a0', textColor: '#473821' },
-  { name: 'Paid Reimbursable', bgColor: '#d4edbc', textColor: '#11734b' },
-  { name: 'Early Reimbursement', bgColor: '#bce3f2', textColor: '#0b4c6b' },
-  { name: 'Pending Reimbursement', bgColor: '#ffc8aa', textColor: '#753800' },
+const REIMBURSEMENT_STATUSES: readonly ReimbursementStatusSeedRow[] = [
+  { name: 'Non-Reimbursable', bgColor: '#e8eaed', textColor: '#000000', kind: 'NonReimbursable' },
+  { name: 'Unpaid Reimbursable', bgColor: '#ffe5a0', textColor: '#473821', kind: 'UnpaidReimbursable' },
+  { name: 'Paid Reimbursable', bgColor: '#d4edbc', textColor: '#11734b', kind: 'PaidReimbursable' },
+  { name: 'Early Reimbursement', bgColor: '#bce3f2', textColor: '#0b4c6b', kind: 'EarlyReimbursement' },
+  { name: 'Pending Reimbursement', bgColor: '#ffc8aa', textColor: '#753800', kind: 'PendingReimbursement' },
 ];
 
 function createPrismaClient(): PrismaClient {
@@ -129,6 +134,7 @@ async function seedReimbursementStatuses(prisma: PrismaClient): Promise<void> {
       bgColor: row.bgColor,
       textColor: row.textColor,
       displayOrder: index,
+      kind: row.kind,
     });
     await repo.save(fresh);
   }

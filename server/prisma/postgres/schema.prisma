@@ -47,6 +47,9 @@ model ReimbursementStatus {
   textColor      String
   isArchived     Boolean @default(false)
   displayOrder   Int
+  // Stable discriminator the reimbursements context maps to a
+  // ReimbursementState variant. Immutable after creation.
+  kind           String  @default("NonReimbursable")
 
   expenses Expense[]
 
