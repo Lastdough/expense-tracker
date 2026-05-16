@@ -12,7 +12,7 @@ import type {
 
 export type ReferenceKind = 'categories' | 'methods' | 'reimbursement-statuses';
 
-interface ReferenceApi<T extends ReferenceView> {
+export interface ReferenceApi<T extends ReferenceView> {
   readonly list: (opts?: { includeArchived?: boolean }) => Promise<T[]>;
   readonly create: (input: CreateInput) => Promise<T>;
   readonly rename: (id: string, input: RenameInput) => Promise<T>;

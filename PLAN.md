@@ -70,6 +70,17 @@ Goal: stop using Sheets for new entries.
 - [x] Frontend Settings page with full CRUD UI *(D.2 — `/settings` with three tabs: Categories table, Methods swatch grid, Statuses table; drag-to-reorder via @dnd-kit; native color picker + hex; responsive shell with side-rail/bottom-tabs; placeholder pages for other destinations)*
 - [ ] Inline "+ Add new..." option at the bottom of every dropdown *(deferred to Milestone I when Quick-Add screen consumes the dropdown component)*
 
+### Bug Fixes 1, Before doing the next Milestone
+- [ ] Duplicated Code in Server Controller, add a Controller Template to reduce duplicate
+- [x] Warnings -> Referenced UMD Global Variable in @RefenrencesTable.tsx, @SwatchGrid.tsx, and useInLineRename.ts *(fixed on refactor/settings-dedup — named type imports for ChangeEvent/KeyboardEvent/CSSProperties)*
+- [ ] Duplicated Code in Server Routes, add Routes Template.
+- [ ] Duplicated Test file 
+- [ ] Deprecated Zod uuid() @categorizationSchemas.ts
+- [ ] Error @prisma.config.ts (search for a possible solution before executing it)
+  - TS1259: Module "node:path" can only be default-imported using the esModuleInterop flag
+  - TS1343: The import.meta meta-property is only allowed when the --module option is es2020, es2022, esnext, system, node16, node18, node20, or nodenext
+  - unused export define config
+
 ### Milestone E — Formula evaluator
 
 - [ ] Whitelist regex blocks anything outside `0-9 + - * / ( ) . whitespace`

@@ -31,15 +31,15 @@ This is a DDD project. Code organization follows **bounded contexts** with stric
 
 Even if a context isn't implemented yet, its folder exists as a placeholder once it's been named.
 
-| Context | Responsibility |
-|---|---|
-| `expenses` | Recording, editing, listing expense entries. The first context built. |
-| `categorization` | Reference data: Category, Method, ReimbursementStatus. |
-| `reimbursements` | Lifecycle of reimbursable expenses (Unpaid → Paid, Early, Pending). |
-| `budgeting` | Budgets per category per period. |
-| `reporting` | Read-only projections: charts, summaries, receipt export, net-owed calculations. |
-| `ledger` | Future. Accounts (Assets/Liabilities/Equity), double-entry transactions. |
-| `identity` | Future (Phase 2). Users, sessions, auth. |
+| Context          | Responsibility                                                                   |
+|------------------|----------------------------------------------------------------------------------|
+| `expenses`       | Recording, editing, listing expense entries. The first context built.            |
+| `categorization` | Reference data: Category, Method, ReimbursementStatus.                           |
+| `reimbursements` | Lifecycle of reimbursable expenses (Unpaid → Paid, Early, Pending).              |
+| `budgeting`      | Budgets per category per period.                                                 |
+| `reporting`      | Read-only projections: charts, summaries, receipt export, net-owed calculations. |
+| `ledger`         | Future. Accounts (Assets/Liabilities/Equity), double-entry transactions.         |
+| `identity`       | Future (Phase 2). Users, sessions, auth.                                         |
 
 ### Cross-context rules
 
@@ -232,38 +232,38 @@ Seed these on first run. Colors are exact and must match.
 
 ### Categories
 
-| Name | bgColor | textColor |
-|---|---|---|
-| Food | `#ffcfc9` | `#b10202` |
+| Name            | bgColor   | textColor |
+|-----------------|-----------|-----------|
+| Food            | `#ffcfc9` | `#b10202` |
 | Transportations | `#0a53a8` | `#ffffff` |
-| Shopping | `#e6cff2` | `#5a3286` |
-| Supplies | `#e6cff2` | `#5a3286` |
-| Groceries | `#e6cff2` | `#5a3286` |
-| Bill | `#ffe5a0` | `#473821` |
-| Services | `#ffe5a0` | `#473821` |
-| Entertainment | `#ffe5a0` | `#473821` |
-| Healthcare | `#d4edbc` | `#11734b` |
-| Misc | `#e8eaed` | `#000000` |
+| Shopping        | `#e6cff2` | `#5a3286` |
+| Supplies        | `#e6cff2` | `#5a3286` |
+| Groceries       | `#e6cff2` | `#5a3286` |
+| Bill            | `#ffe5a0` | `#473821` |
+| Services        | `#ffe5a0` | `#473821` |
+| Entertainment   | `#ffe5a0` | `#473821` |
+| Healthcare      | `#d4edbc` | `#11734b` |
+| Misc            | `#e8eaed` | `#000000` |
 
 ### Methods
 
-| Name | bgColor | textColor |
-|---|---|---|
-| Mandiri | `#143361` | `#a8c0e0` |
-| Jago | `#fcaf23` | `#6b4400` |
-| BCA | `#046ebc` | `#c0d8f5` |
-| Gopay | `#00accb` | `#e0f7ff` |
+| Name      | bgColor   | textColor |
+|-----------|-----------|-----------|
+| Mandiri   | `#143361` | `#a8c0e0` |
+| Jago      | `#fcaf23` | `#6b4400` |
+| BCA       | `#046ebc` | `#c0d8f5` |
+| Gopay     | `#00accb` | `#e0f7ff` |
 | ShopeePay | `#ef5334` | `#ffffff` |
-| Cash | `#e8eaed` | `#000000` |
+| Cash      | `#e8eaed` | `#000000` |
 
 ### Reimbursement statuses
 
-| Name | bgColor | textColor |
-|---|---|---|
-| Non-Reimbursable | `#e8eaed` | `#000000` |
-| Unpaid Reimbursable | `#ffe5a0` | `#473821` |
-| Paid Reimbursable | `#d4edbc` | `#11734b` |
-| Early Reimbursement | `#bce3f2` | `#0b4c6b` |
+| Name                  | bgColor   | textColor |
+|-----------------------|-----------|-----------|
+| Non-Reimbursable      | `#e8eaed` | `#000000` |
+| Unpaid Reimbursable   | `#ffe5a0` | `#473821` |
+| Paid Reimbursable     | `#d4edbc` | `#11734b` |
+| Early Reimbursement   | `#bce3f2` | `#0b4c6b` |
 | Pending Reimbursement | `#ffc8aa` | `#753800` |
 
 ---

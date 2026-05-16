@@ -1,42 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
+import { DndContext, closestCenter } from '@dnd-kit/core';
 import {
   SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Archive, GripVertical, RotateCcw } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import type { ReferenceView } from '../../../api/types';
+import type { GridProps } from '../ReferenceDataTab';
+import { useInlineRename } from '../useInlineRename';
+import { useReorderableList } from '../useReorderableList';
 import { Chip } from './Chip';
+import { ColorDot } from './ColorDot';
+import { ShowArchivedToggle } from './ShowArchivedToggle';
 
 type ColorTarget = 'bg' | 'text';
 
-interface ReferenceTableProps<T extends ReferenceView> {
-  readonly items: ReadonlyArray<T>;
-  readonly singularLabel: string;
-  readonly showArchived: boolean;
-  readonly onShowArchivedChange: (next: boolean) => void;
-  readonly onAdd: () => void;
-  readonly onEdit: (item: T, target?: ColorTarget) => void;
-  readonly onRename: (item: T, name: string) => void;
-  readonly onArchive: (item: T) => void;
-  readonly onUnarchive: (item: T) => void;
-  readonly onReorder: (orderedIds: ReadonlyArray<string>) => void;
-}
-
-const GRID =
-  'grid-cols-[28px_minmax(0,1fr)_minmax(0,1.6fr)_120px_120px_64px_120px]';
+const GRID = 'grid-cols-[28px_minmax(0,1fr)_minmax(0,1.6fr)_120px_120px_64px_120px]';
 
 export function ReferenceTable<T extends ReferenceView>({
   items,
@@ -49,41 +30,19 @@ export function ReferenceTable<T extends ReferenceView>({
   onArchive,
   onUnarchive,
   onReorder,
-}: ReferenceTableProps<T>) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
+}: GridProps<T>) {
   const active = items.filter((i) => !i.isArchived);
   const archived = items.filter((i) => i.isArchived);
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active: a, over } = event;
-    if (!over || a.id === over.id) return;
-    const oldIndex = active.findIndex((i) => i.id === a.id);
-    const newIndex = active.findIndex((i) => i.id === over.id);
-    if (oldIndex < 0 || newIndex < 0) return;
-    const reordered = arrayMove(active.slice(), oldIndex, newIndex);
-    onReorder(reordered.map((i) => i.id));
-  };
+  const { sensors, handleDragEnd } = useReorderableList({ items: active, onReorder });
 
   return (
     <div className="px-5 md:px-8 py-6 flex flex-col gap-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <label className="flex items-center gap-2 text-[12.5px] text-ink-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => onShowArchivedChange(e.target.checked)}
-            className="accent-ink"
-          />
-          Show archived ({archived.length})
-        </label>
-        <span className="ml-auto text-[11px] text-ink-3 hidden sm:block">
-          Drag rows to reorder · displayOrder is 1-indexed
-        </span>
-      </div>
+      <ShowArchivedToggle
+        checked={showArchived}
+        onChange={onShowArchivedChange}
+        archivedCount={archived.length}
+        hint="Drag rows to reorder · displayOrder is 1-indexed"
+      />
 
       <div className="rounded-xl border border-line bg-white overflow-hidden">
         <div
@@ -168,27 +127,12 @@ function SortableRow<T extends ReferenceView>({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
   });
-  const style: React.CSSProperties = {
+  const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
   };
-  const [name, setName] = useState(item.name);
-  const cancelRef = useRef(false);
-  useEffect(() => setName(item.name), [item.name]);
-  const commit = () => {
-    if (cancelRef.current) {
-      cancelRef.current = false;
-      setName(item.name);
-      return;
-    }
-    const trimmed = name.trim();
-    if (trimmed === '' || trimmed === item.name) {
-      setName(item.name);
-      return;
-    }
-    onRename(trimmed);
-  };
+  const rename = useInlineRename({ initial: item.name, onCommit: onRename });
 
   return (
     <div
@@ -210,16 +154,10 @@ function SortableRow<T extends ReferenceView>({
       </div>
       <div className="min-w-0">
         <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') {
-              cancelRef.current = true;
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
+          value={rename.value}
+          onChange={rename.onChange}
+          onBlur={rename.onBlur}
+          onKeyDown={rename.onKeyDown}
           maxLength={64}
           className="w-full bg-transparent text-[13.5px] font-medium px-1.5 -mx-1.5 py-0.5 rounded outline-none border border-transparent hover:border-line focus:border-ink focus:bg-white transition"
         />
@@ -275,24 +213,5 @@ function ArchivedRow<T extends ReferenceView>({
         </button>
       </div>
     </div>
-  );
-}
-
-function ColorDot({ hex, onClick }: { readonly hex: string; readonly onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group inline-flex items-center gap-1.5 px-1.5 py-1 rounded-md border border-line bg-white hover:border-ink-3 transition w-fit"
-      title={hex}
-    >
-      <span
-        className="w-4 h-4 rounded border border-black/10 shrink-0"
-        style={{ background: hex }}
-      />
-      <span className="text-[10.5px] font-mono text-ink-3 group-hover:text-ink uppercase">
-        {hex.replace('#', '')}
-      </span>
-    </button>
   );
 }

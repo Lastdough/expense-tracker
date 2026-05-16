@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {X} from 'lucide-react';
 import {BlockPicker, type ColorResult} from 'react-color';
 import {Chip} from './Chip';
@@ -208,7 +208,7 @@ export function EditDrawer({
               </TabButton>
             </div>
 
-            <div className="pt-4 flex justify-center" data-color-picker>
+            <div className="pt-4 flex justify-center" data-color-picker="">
               <style>{`
                 [data-color-picker] [title="#ffffff"] {
                   box-shadow: inset 0 0 0 1px #d6d3d1;
