@@ -2,8 +2,8 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 1 / Milestone E — Formula evaluator (Milestone D complete: D.1 backend + D.2 Settings UI shipped)
-**Last updated:** 2026-05-11
+**Current milestone:** Phase 1 / Milestone F — Expenses context (Milestone E complete: hand-rolled formula evaluator shipped)
+**Last updated:** 2026-05-16
 
 ---
 
@@ -80,11 +80,11 @@ Goal: stop using Sheets for new entries.
 
 ### Milestone E — Formula evaluator
 
-- [ ] Whitelist regex blocks anything outside `0-9 + - * / ( ) . whitespace`
-- [ ] Parser: either `expr-eval` integration or hand-rolled shunting-yard
-- [ ] **Verify no `eval` / `Function` / `vm` usage anywhere**
-- [ ] Unit tests including: simple arithmetic, parentheses, whitespace tolerance, malicious inputs (`process.exit`, `require(...)`, `__proto__`, function calls), Unicode tricks, division-by-zero behavior
-- [ ] Result is a `Money` instance
+- [x] Whitelist regex blocks anything outside `0-9 + - * / ( ) . whitespace` *(ASCII-only whitespace `[ \t\n\r]`; non-ASCII whitespace like NBSP / em-space rejected)*
+- [x] Parser: hand-rolled recursive descent over `expr/term/factor/primary` grammar (no `expr-eval` dependency) — all arithmetic in `bigint` at currency `minorUnits + 6` precision, half-away-from-zero rounding
+- [x] **Verify no `eval` / `Function` / `vm` usage anywhere** *(`FormulaEvaluator.test.ts` reads its own source and asserts the absence of `eval(`, `new Function(`, bare `Function(`, `node:vm` import, and `vm.runIn*` calls)*
+- [x] Unit tests including: simple arithmetic, parentheses, whitespace tolerance, malicious inputs (`process.exit`, `require(...)`, `__proto__`, function calls, template literals, hex/bin/scientific literals), Unicode tricks (full-width/Arabic-Indic/Devanagari digits, NBSP, ZWJ, RTL mark, fullwidth `＋`), division-by-zero, currency-precision rejection, very large bigints *(75 tests)*
+- [x] Result is a `Money` instance *(via `Money.fromMinor(rounded, currency)`)*
 
 ### Milestone F — Expenses context
 
