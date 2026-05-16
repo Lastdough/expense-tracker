@@ -29,7 +29,6 @@ import { UnarchiveCategory } from './contexts/categorization/application/use-cas
 import { ReorderCategories } from './contexts/categorization/application/use-cases/ReorderCategories.js';
 import { ListCategories } from './contexts/categorization/application/use-cases/ListCategories.js';
 import { PrismaCategoryRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaCategoryRepository.js';
-import { CategoryController } from './contexts/categorization/interfaces/http/controllers/CategoryController.js';
 
 import { CreateMethod } from './contexts/categorization/application/use-cases/CreateMethod.js';
 import { RenameMethod } from './contexts/categorization/application/use-cases/RenameMethod.js';
@@ -39,7 +38,6 @@ import { UnarchiveMethod } from './contexts/categorization/application/use-cases
 import { ReorderMethods } from './contexts/categorization/application/use-cases/ReorderMethods.js';
 import { ListMethods } from './contexts/categorization/application/use-cases/ListMethods.js';
 import { PrismaMethodRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaMethodRepository.js';
-import { MethodController } from './contexts/categorization/interfaces/http/controllers/MethodController.js';
 
 import { CreateReimbursementStatus } from './contexts/categorization/application/use-cases/CreateReimbursementStatus.js';
 import { RenameReimbursementStatus } from './contexts/categorization/application/use-cases/RenameReimbursementStatus.js';
@@ -49,13 +47,17 @@ import { UnarchiveReimbursementStatus } from './contexts/categorization/applicat
 import { ReorderReimbursementStatuses } from './contexts/categorization/application/use-cases/ReorderReimbursementStatuses.js';
 import { ListReimbursementStatuses } from './contexts/categorization/application/use-cases/ListReimbursementStatuses.js';
 import { PrismaReimbursementStatusRepository } from './contexts/categorization/infrastructure/persistence/prisma/PrismaReimbursementStatusRepository.js';
-import { ReimbursementStatusController } from './contexts/categorization/interfaces/http/controllers/ReimbursementStatusController.js';
+
+import {
+  makeReferenceController,
+  type ReferenceController,
+} from './contexts/categorization/interfaces/http/controllers/makeReferenceController.js';
 
 export interface Container {
   readonly pingController: PingController;
-  readonly categoryController: CategoryController;
-  readonly methodController: MethodController;
-  readonly reimbursementStatusController: ReimbursementStatusController;
+  readonly categoryController: ReferenceController;
+  readonly methodController: ReferenceController;
+  readonly reimbursementStatusController: ReferenceController;
   shutdown(): Promise<void>;
 }
 
@@ -71,7 +73,7 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
 
   // Categorization — Category
   const categoryRepo = new PrismaCategoryRepository(prisma);
-  const categoryController = new CategoryController({
+  const categoryController = makeReferenceController({
     list: new ListCategories(categoryRepo),
     create: new CreateCategory(categoryRepo),
     rename: new RenameCategory(categoryRepo),
@@ -83,7 +85,7 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
 
   // Categorization — Method
   const methodRepo = new PrismaMethodRepository(prisma);
-  const methodController = new MethodController({
+  const methodController = makeReferenceController({
     list: new ListMethods(methodRepo),
     create: new CreateMethod(methodRepo),
     rename: new RenameMethod(methodRepo),
@@ -95,7 +97,7 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
 
   // Categorization — ReimbursementStatus
   const reimbursementStatusRepo = new PrismaReimbursementStatusRepository(prisma);
-  const reimbursementStatusController = new ReimbursementStatusController({
+  const reimbursementStatusController = makeReferenceController({
     list: new ListReimbursementStatuses(reimbursementStatusRepo),
     create: new CreateReimbursementStatus(reimbursementStatusRepo),
     rename: new RenameReimbursementStatus(reimbursementStatusRepo),

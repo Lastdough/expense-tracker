@@ -6,9 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig, type AppConfig } from './config/env.js';
 import { buildContainer } from './container.js';
 import { pingRoutes } from './contexts/expenses/interfaces/http/routes/pingRoutes.js';
-import { categoryRoutes } from './contexts/categorization/interfaces/http/routes/categoryRoutes.js';
-import { methodRoutes } from './contexts/categorization/interfaces/http/routes/methodRoutes.js';
-import { reimbursementStatusRoutes } from './contexts/categorization/interfaces/http/routes/reimbursementStatusRoutes.js';
+import { referenceRoutes } from './contexts/categorization/interfaces/http/routes/referenceRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -55,9 +53,9 @@ async function main(): Promise<void> {
   });
 
   app.use('/api/expenses', pingRoutes(container.pingController));
-  app.use('/api/categories', categoryRoutes(container.categoryController));
-  app.use('/api/methods', methodRoutes(container.methodController));
-  app.use('/api/reimbursement-statuses', reimbursementStatusRoutes(container.reimbursementStatusController));
+  app.use('/api/categories', referenceRoutes(container.categoryController));
+  app.use('/api/methods', referenceRoutes(container.methodController));
+  app.use('/api/reimbursement-statuses', referenceRoutes(container.reimbursementStatusController));
 
   if (!config.isProd) {
     const clientReady = existsSync(path.join(clientDir, 'index.html'));

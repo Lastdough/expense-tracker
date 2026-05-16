@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { type MethodController } from '../controllers/MethodController.js';
+import { type ReferenceController } from '../controllers/makeReferenceController.js';
 
-export function methodRoutes(controller: MethodController): Router {
+export function referenceRoutes(controller: ReferenceController): Router {
   const router = Router();
   router.get('/', controller.list);
   router.post('/', controller.create);

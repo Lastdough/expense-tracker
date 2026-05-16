@@ -71,9 +71,9 @@ Goal: stop using Sheets for new entries.
 - [ ] Inline "+ Add new..." option at the bottom of every dropdown *(deferred to Milestone I when Quick-Add screen consumes the dropdown component)*
 
 ### Bug Fixes 1, Before doing the next Milestone
-- [ ] Duplicated Code in Server Controller, add a Controller Template to reduce duplicate
+- [x] Duplicated Code in Server Controller, make a controller factory *(makeReferenceController<T> + shared helpers — parseBody, readIdParam, respondOne/Many; collapses 3 controllers to 1)*
 - [x] Warnings -> Referenced UMD Global Variable in @RefenrencesTable.tsx, @SwatchGrid.tsx, and useInLineRename.ts *(fixed on refactor/settings-dedup — named type imports for ChangeEvent/KeyboardEvent/CSSProperties)*
-- [ ] Duplicated Code in Server Routes, add Routes Template.
+- [x] Duplicated Code in Server Routes *(referenceRoutes(controller) reused across /api/categories, /api/methods, /api/reimbursement-statuses)*
 - [ ] Duplicated Test file 
 - [ ] Deprecated Zod uuid() @categorizationSchemas.ts
 - [ ] Error @prisma.config.ts (search for a possible solution before executing it)
