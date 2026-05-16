@@ -9,15 +9,6 @@ datasource db {
   provider = "sqlite"
 }
 
-// Throwaway placeholder for Milestone C. Proves the wiring
-// Controller -> UseCase -> Repository -> Prisma -> real DB read.
-// Will be removed when the real Expense aggregate lands in Milestone F.
-model Ping {
-  id         String   @id
-  message    String
-  recordedAt DateTime @default(now())
-}
-
 // ── Categorization context ──────────────────────────────────────────────────
 // Reference data for expenses. Archive, never delete — historical expenses
 // continue to reference these rows by id. See CLAUDE.md "Reference data uses
@@ -35,6 +26,8 @@ model Category {
   isArchived     Boolean @default(false)
   displayOrder   Int
 
+  expenses Expense[]
+
   @@index([displayOrder])
 }
 
@@ -46,6 +39,8 @@ model Method {
   textColor      String
   isArchived     Boolean @default(false)
   displayOrder   Int
+
+  expenses Expense[]
 
   @@index([displayOrder])
 }
@@ -59,5 +54,38 @@ model ReimbursementStatus {
   isArchived     Boolean @default(false)
   displayOrder   Int
 
+  expenses Expense[]
+
   @@index([displayOrder])
+}
+
+// ── Expenses context ────────────────────────────────────────────────────────
+// The daily-driver aggregate. `amountMinor` is a 64-bit integer in the
+// currency's minor units (Money VO is the source of truth at the app layer);
+// `currency` is hard-coded to 'IDR' today but persisted per row so a future
+// Settings flow can introduce per-user currency without migration.
+// `rawInput` keeps the formula the user typed (e.g. "=20000*5") when the
+// amount came from a formula; null when the user typed a plain number.
+
+model Expense {
+  id                    String   @id
+  transactionDate       DateTime
+  amountMinor           BigInt
+  currency              String
+  rawInput              String?
+  description           String
+  categoryId            String
+  methodId              String
+  reimbursementStatusId String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  category            Category            @relation(fields: [categoryId], references: [id])
+  method              Method              @relation(fields: [methodId], references: [id])
+  reimbursementStatus ReimbursementStatus @relation(fields: [reimbursementStatusId], references: [id])
+
+  @@index([transactionDate])
+  @@index([categoryId])
+  @@index([methodId])
+  @@index([reimbursementStatusId])
 }

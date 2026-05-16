@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, type AppConfig } from './config/env.js';
 import { buildContainer } from './container.js';
-import { pingRoutes } from './contexts/expenses/interfaces/http/routes/pingRoutes.js';
+import { expenseRoutes } from './contexts/expenses/interfaces/http/routes/expenseRoutes.js';
 import { referenceRoutes } from './contexts/categorization/interfaces/http/routes/referenceRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
     res.json({ status: 'ok' });
   });
 
-  app.use('/api/expenses', pingRoutes(container.pingController));
+  app.use('/api/expenses', expenseRoutes(container.expenseController));
   app.use('/api/categories', referenceRoutes(container.categoryController));
   app.use('/api/methods', referenceRoutes(container.methodController));
   app.use('/api/reimbursement-statuses', referenceRoutes(container.reimbursementStatusController));

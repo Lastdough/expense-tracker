@@ -2,7 +2,7 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 1 / Milestone F — Expenses context (Milestone E complete: hand-rolled formula evaluator shipped)
+**Current milestone:** Phase 1 / Milestone G — Reimbursements context (Milestone F complete: Expense aggregate, repository, 5 use cases, HTTP, events)
 **Last updated:** 2026-05-16
 
 ---
@@ -88,13 +88,13 @@ Goal: stop using Sheets for new entries.
 
 ### Milestone F — Expenses context
 
-- [ ] `Expense` aggregate: `id`, `transactionDate`, `amount: Money`, `rawInput: string | null`, `description`, `categoryId`, `methodId`, `reimbursementStatusId`, timestamps
-- [ ] `IExpenseRepository` interface with methods that speak the domain (`findInDateRange`, `findUnpaidReimbursables`, etc.) — not generic CRUD
-- [ ] Prisma implementation with mappers
-- [ ] Use cases: `RecordExpense`, `EditExpense`, `DeleteExpense`, `ListExpenses` (with filters), `GetExpense`
-- [ ] Domain events: `ExpenseRecorded`, `ExpenseEdited`, `ExpenseDeleted`
-- [ ] HTTP endpoints with Zod schemas
-- [ ] Filter support: date range, category, method, reimbursement status, free-text search on description
+- [x] `Expense` aggregate: `id`, `transactionDate`, `amount: Money`, `rawInput: string | null`, `description`, `categoryId`, `methodId`, `reimbursementStatusId`, timestamps *(local `CategoryRef`/`MethodRef`/`ReimbursementStatusRef` brands keep the domain free of cross-context imports — see decision log)*
+- [x] `IExpenseRepository` interface with methods that speak the domain (`findInDateRange`, `search`) — not generic CRUD *(`findUnpaidReimbursables` deferred to Milestone G; see decision log)*
+- [x] Prisma implementation with mappers
+- [x] Use cases: `RecordExpense`, `EditExpense`, `DeleteExpense`, `ListExpenses` (with filters), `GetExpense`
+- [x] Domain events: `ExpenseRecorded`, `ExpenseEdited`, `ExpenseDeleted` *(published; no subscribers yet — Reporting/Reimbursements wire them in G/H)*
+- [x] HTTP endpoints with Zod schemas *(`POST/GET /api/expenses`, `GET/PATCH/DELETE /api/expenses/:id`; replaces the Milestone-C `/api/expenses/ping` placeholder, which has been removed)*
+- [x] Filter support: date range, category, method, reimbursement status, free-text search on description *(half-open date range; limit/offset pagination, default 50, max 200)*
 
 ### Milestone G — Reimbursements context
 
@@ -234,3 +234,8 @@ Use this section to record the *why* behind important choices, with date.
 - **2026-05-11** — Prisma 7 moved schema + datasource URL out of `schema.prisma` and into `prisma.config.ts`. One config at server root routes between sqlite/postgres via `DATABASE_PROVIDER`. Side effect: `PrismaClient` no longer accepts `datasourceUrl` — it requires a driver adapter for direct DB connections. `@prisma/adapter-better-sqlite3` for dev, `@prisma/adapter-pg` for prod.
 - **2026-05-11** — Docker images package the whole monorepo per stage and run `pnpm prune --prod` to drop dev deps, instead of using `pnpm deploy`. `pnpm deploy` doesn't preserve the in-place Prisma generated client across the copy, and it requires `--legacy` mode for shared lockfiles. The monorepo-copy approach keeps pnpm's symlink layout intact and ships a working runtime; image-size optimization can come later.
 - **2026-05-11** — `packageManager` pinned to `pnpm@10.11.1` so corepack-installed pnpm in Docker matches local. Without the pin, Docker pulled pnpm 11 which has stricter ignored-builds semantics and a different `deploy` default.
+- **2026-05-16** — Expense aggregate keeps `amount` as positive `Money`; sign-of-cash-flow is a reporting concern, never a property of the aggregate. Reaffirms CLAUDE.md "Expenses are always positive".
+- **2026-05-16** — Domain events emitted from F (`ExpenseRecorded`, `ExpenseEdited`, `ExpenseDeleted`) have no subscribers yet. `InMemoryEventBus` is instantiated in `container.ts` and shared via the `Container` interface so Milestones G/H can subscribe without touching the publisher.
+- **2026-05-16** — `findUnpaidReimbursables` from the original Milestone F spec deferred to Milestone G when the `Reimbursement` VO defines what "Unpaid Reimbursable" means semantically. F ships with a richer `IExpenseRepository.search(criteria)` instead — the listing UI needs filters across all dimensions anyway.
+- **2026-05-16** — The Expense aggregate carries its own branded FK types (`CategoryRef`, `MethodRef`, `ReimbursementStatusRef`) rather than importing `CategoryId`/`MethodId`/`ReimbursementStatusId` from the categorization context. Reason: the dependency rule forbids cross-context domain imports. Cross-context validity checks go through three thin application-layer lookups in `categorization/application/services/` (`CategoryLookup.isActiveById` etc.) — boolean return keeps the categorization entity off the Expenses context's import surface.
+- **2026-05-16** — Description search uses Prisma `contains` without `mode: 'insensitive'`. The mode flag isn't on the SQLite generated client's `StringFilter` type, and SQLite's default LIKE is ASCII case-insensitive — good enough for dev and a single-user app. Postgres LIKE is case-sensitive — revisit (lowercased denormalized column or pg_trgm) if Postgres becomes the primary daily target before Milestone I (Quick-Add UI).

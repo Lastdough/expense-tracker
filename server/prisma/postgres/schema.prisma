@@ -9,12 +9,6 @@ datasource db {
   provider = "postgresql"
 }
 
-model Ping {
-  id         String   @id
-  message    String
-  recordedAt DateTime @default(now())
-}
-
 // ── Categorization context ──────────────────────────────────────────────────
 
 model Category {
@@ -25,6 +19,8 @@ model Category {
   textColor      String
   isArchived     Boolean @default(false)
   displayOrder   Int
+
+  expenses Expense[]
 
   @@index([displayOrder])
 }
@@ -38,6 +34,8 @@ model Method {
   isArchived     Boolean @default(false)
   displayOrder   Int
 
+  expenses Expense[]
+
   @@index([displayOrder])
 }
 
@@ -50,5 +48,32 @@ model ReimbursementStatus {
   isArchived     Boolean @default(false)
   displayOrder   Int
 
+  expenses Expense[]
+
   @@index([displayOrder])
+}
+
+// ── Expenses context ────────────────────────────────────────────────────────
+
+model Expense {
+  id                    String   @id
+  transactionDate       DateTime
+  amountMinor           BigInt
+  currency              String
+  rawInput              String?
+  description           String
+  categoryId            String
+  methodId              String
+  reimbursementStatusId String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  category            Category            @relation(fields: [categoryId], references: [id])
+  method              Method              @relation(fields: [methodId], references: [id])
+  reimbursementStatus ReimbursementStatus @relation(fields: [reimbursementStatusId], references: [id])
+
+  @@index([transactionDate])
+  @@index([categoryId])
+  @@index([methodId])
+  @@index([reimbursementStatusId])
 }

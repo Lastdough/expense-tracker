@@ -12,13 +12,9 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
+import { InMemoryEventBus } from './shared-kernel/domain-events/InMemoryEventBus.js';
+import { type EventBus } from './shared-kernel/domain-events/EventBus.js';
 import { type AppConfig } from './config/env.js';
-
-// Expenses context (Ping placeholder — deleted in Milestone F)
-import { GetLatestPing } from './contexts/expenses/application/use-cases/GetLatestPing.js';
-import { PingExpenses } from './contexts/expenses/application/use-cases/PingExpenses.js';
-import { PrismaPingRepository } from './contexts/expenses/infrastructure/persistence/prisma/PrismaPingRepository.js';
-import { PingController } from './contexts/expenses/interfaces/http/controllers/PingController.js';
 
 // Categorization context
 import { CreateCategory } from './contexts/categorization/application/use-cases/CreateCategory.js';
@@ -53,23 +49,36 @@ import {
   type ReferenceController,
 } from './contexts/categorization/interfaces/http/controllers/makeReferenceController.js';
 
+// Categorization application-layer lookups (cross-context boundary)
+import { CategoryLookup } from './contexts/categorization/application/services/CategoryLookup.js';
+import { MethodLookup } from './contexts/categorization/application/services/MethodLookup.js';
+import { ReimbursementStatusLookup } from './contexts/categorization/application/services/ReimbursementStatusLookup.js';
+
+// Expenses context
+import { ReferenceValidator } from './contexts/expenses/application/services/ReferenceValidator.js';
+import { DeleteExpense } from './contexts/expenses/application/use-cases/DeleteExpense.js';
+import { EditExpense } from './contexts/expenses/application/use-cases/EditExpense.js';
+import { GetExpense } from './contexts/expenses/application/use-cases/GetExpense.js';
+import { ListExpenses } from './contexts/expenses/application/use-cases/ListExpenses.js';
+import { RecordExpense } from './contexts/expenses/application/use-cases/RecordExpense.js';
+import { PrismaExpenseRepository } from './contexts/expenses/infrastructure/persistence/prisma/PrismaExpenseRepository.js';
+import {
+  makeExpenseController,
+  type ExpenseController,
+} from './contexts/expenses/interfaces/http/controllers/ExpenseController.js';
+
 export interface Container {
-  readonly pingController: PingController;
+  readonly eventBus: EventBus;
   readonly categoryController: ReferenceController;
   readonly methodController: ReferenceController;
   readonly reimbursementStatusController: ReferenceController;
+  readonly expenseController: ExpenseController;
   shutdown(): Promise<void>;
 }
 
 export async function buildContainer(config: AppConfig): Promise<Container> {
   const prisma = createPrismaClient(config);
-
-  // Expenses (Ping placeholder)
-  const pingRepository = new PrismaPingRepository(prisma);
-  const pingController = new PingController(
-    new PingExpenses(pingRepository),
-    new GetLatestPing(pingRepository),
-  );
+  const eventBus: EventBus = new InMemoryEventBus();
 
   // Categorization — Category
   const categoryRepo = new PrismaCategoryRepository(prisma);
@@ -107,11 +116,27 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     reorder: new ReorderReimbursementStatuses(reimbursementStatusRepo),
   });
 
+  // Expenses
+  const expenseRepo = new PrismaExpenseRepository(prisma);
+  const referenceValidator = new ReferenceValidator(
+    new CategoryLookup(categoryRepo),
+    new MethodLookup(methodRepo),
+    new ReimbursementStatusLookup(reimbursementStatusRepo),
+  );
+  const expenseController = makeExpenseController({
+    record: new RecordExpense(expenseRepo, referenceValidator, eventBus),
+    list: new ListExpenses(expenseRepo),
+    get: new GetExpense(expenseRepo),
+    edit: new EditExpense(expenseRepo, referenceValidator, eventBus),
+    delete: new DeleteExpense(expenseRepo, eventBus),
+  });
+
   return {
-    pingController,
+    eventBus,
     categoryController,
     methodController,
     reimbursementStatusController,
+    expenseController,
     async shutdown() {
       await prisma.$disconnect();
     },
