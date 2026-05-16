@@ -13,9 +13,10 @@ A personal-finance ledger application. Starts as an expense tracker (replacing a
 ## Tech stack (locked)
 
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, motion/react, react-router-dom v7, lucide-react, Google Material Symbols icon font
+- **Frontend UI deps:** `@dnd-kit/*` (drag-reorder, used in Settings; available for future list reordering elsewhere), `react-color` (BlockPicker in the color-editor drawer)
 - **Backend:** Express, TypeScript via tsx, Prisma v7 ORM, dotenv
 - **DB (dev):** SQLite via `@prisma/adapter-better-sqlite3`
-- **DB (prod):** PostgreSQL
+- **DB (prod):** PostgreSQL via `@prisma/adapter-pg`
 - **Testing:** Vitest
 - **Validation:** Zod (at HTTP boundaries only)
 
@@ -60,7 +61,8 @@ Even if a context isn't implemented yet, its folder exists as a placeholder once
 │   │   │   ├── money/            # Money value object
 │   │   │   ├── identifier/       # Branded ID types
 │   │   │   ├── result/           # Result<T, E>
-│   │   │   └── domain-events/    # Event bus interface + in-memory impl
+│   │   │   ├── domain-events/    # Event bus interface + in-memory impl
+│   │   │   └── errors/           # Base DomainError
 │   │   ├── contexts/
 │   │   │   └── <context-name>/
 │   │   │       ├── domain/
@@ -75,25 +77,38 @@ Even if a context isn't implemented yet, its folder exists as a placeholder once
 │   │   │       │   └── dto/
 │   │   │       ├── infrastructure/
 │   │   │       │   ├── persistence/
-│   │   │       │   │   ├── prisma/       # Prisma-backed repos
+│   │   │       │   │   └── prisma/       # Prisma-backed repos
 │   │   │       │   └── mappers/
 │   │   │       └── interfaces/
 │   │   │           └── http/
-│   │   │               ├── controllers/
-│   │   │               ├── routes/
+│   │   │               ├── controllers/  # Per-aggregate OR makeReferenceController<T>
+│   │   │               ├── routes/       # Per-aggregate OR shared referenceRoutes
 │   │   │               └── schemas/      # Zod
 │   │   ├── config/
 │   │   ├── container.ts          # Composition root
+│   │   ├── seed.ts               # Reference-data seed script (pnpm --filter server seed)
 │   │   └── server.ts             # Express + Vite middleware setup
 │   ├── prisma/
-│   │   ├── schema.sqlite.prisma
-│   │   └── schema.postgres.prisma
+│   │   ├── sqlite/
+│   │   │   ├── schema.prisma
+│   │   │   └── migrations/
+│   │   └── postgres/
+│   │       ├── schema.prisma
+│   │       └── migrations/
+│   ├── prisma.config.ts          # Prisma 7 config; routes provider via DATABASE_PROVIDER
+│   ├── vitest.config.ts
+│   ├── tsconfig.json             # Project-references root (files: [], references → app+tooling)
+│   ├── tsconfig.app.json         # composite, covers src/**/*.ts
+│   ├── tsconfig.tooling.json     # composite + noEmit, covers prisma.config.ts + vitest.config.ts
 │   └── package.json
 ├── client/                       # Frontend workspace
 │   ├── src/
+│   │   ├── api/                  # Typed HTTP client; reads VITE_API_URL
+│   │   └── routes/               # react-router-dom v7 file organization
 │   └── package.json
 ├── docs/
 │   └── domain/                   # One markdown file per bounded context
+├── tsconfig.base.json            # Shared compilerOptions (extended by both workspaces)
 ├── CLAUDE.md
 ├── PLAN.md
 ├── Dockerfile.api
@@ -164,6 +179,17 @@ Production target is Postgres but dev is SQLite, and the long-term plan keeps th
 - Published from aggregates (added to an internal list, flushed by the use case after persistence succeeds).
 - Subscribed to in `<context>/application/` or in another context's `application/` layer.
 - In-memory bus for now. Interface stays clean enough to swap for a real broker later.
+
+### Reference-data HTTP factory
+
+Aggregates whose HTTP surface is the **uniform reference-data CRUD shape** (`list/create/rename/changeColors/archive/unarchive/reorder`) MUST go through the shared factory rather than getting their own per-aggregate controller and route files.
+
+- Factory: `makeReferenceController<T extends ReferenceView>(deps)` in `contexts/categorization/interfaces/http/controllers/makeReferenceController.ts`. Takes the seven use cases via structural interfaces (`ListUseCase<T>`, `CreateUseCase<T>`, …) — no inheritance, no domain-layer coupling.
+- Shared routes: `referenceRoutes(controller)` mounts the same Router for each resource. Mount per-resource with a base path in `server.ts`.
+- Wire in `container.ts` with `makeReferenceController({ list, create, …, reorder })`; the container's typed slot is `ReferenceController`.
+- This applies today to `Category`, `Method`, `ReimbursementStatus`. Add new reference-data aggregates the same way.
+- **Do not** force-fit aggregates whose HTTP surface diverges from this shape (e.g., `Expense` will have filters, formula re-eval on edit, attachment uploads — give it its own controller). The factory is for the shared shape; non-uniform shapes get their own files.
+- Shared helpers in `makeReferenceController.ts` (`parseBody`, `readIdParam`, `respondOne`/`respondMany`, `statusForCode`, `writeError`) are private to that file. Lift any helper to a shared location only when a second non-factory controller needs it.
 
 ---
 
