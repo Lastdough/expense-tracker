@@ -109,7 +109,7 @@ Goal: stop using Sheets for new entries.
 ### Milestone H — Reporting context (Phase 1 slice)
 
 - [ ] `MonthlySummary` projection: total expenses, by-category breakdown, by-method breakdown
-- [ ] `NetOwedCalculator`: `sum(|Early|) - sum(Unpaid)` over a date range
+- [ ] `NetOwedCalculator`: `sum(Unpaid) - sum(|Early|)` over a date range
 - [ ] `AvailableBudget` (depends on monthly budget — for Phase 1, monthly budget is a config value; budgeting context comes in Phase 3)
 - [ ] **Receipt export**: aggregate by description, group `Unpaid` and `Early` (negative), grand total = "amount currently owed to you"
 - [ ] Output formats: rendered HTML page (printable), PDF (Puppeteer renders the same HTML), CSV

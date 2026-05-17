@@ -10,6 +10,7 @@ import {
   type MethodBreakdownRow,
   type MonthlySummary,
 } from '../../../domain/value-objects/MonthlySummary.js';
+import { type NetOwedSnapshot } from '../../../domain/value-objects/NetOwed.js';
 
 /**
  * Read-only Prisma-backed implementation. Reads Expense + Category + Method
@@ -124,6 +125,67 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
       byMethod,
     });
   }
+
+  async getNetOwed(range: {
+    start: Date;
+    end: Date;
+  }): Promise<Result<NetOwedSnapshot, MixedCurrencyInRangeError>> {
+    const rows = await this.prisma.reimbursement.findMany({
+      where: {
+        kind: { in: ['UnpaidReimbursable', 'EarlyReimbursement'] },
+        expense: { transactionDate: { gte: range.start, lt: range.end } },
+      },
+      select: {
+        kind: true,
+        expense: { select: { amountMinor: true, currency: true } },
+      },
+    });
+
+    if (rows.length === 0) {
+      return ok(emptyNetOwed(range));
+    }
+
+    const currencySet = new Set(rows.map((r) => r.expense.currency));
+    if (currencySet.size > 1) {
+      const list = [...currencySet].join(', ');
+      return err(
+        new MixedCurrencyInRangeError(
+          `Cannot compute netOwed: range contains mixed currencies (${list})`,
+        ),
+      );
+    }
+
+    const [currencyRaw] = currencySet;
+    if (currencyRaw === undefined || !isCurrency(currencyRaw)) {
+      throw new RangeError(
+        `PrismaReportingReadRepository: persisted currency "${currencyRaw}" is not supported`,
+      );
+    }
+    const currency = currencyRaw;
+
+    let sumUnpaidMinor = 0n;
+    let sumEarlyMinor = 0n;
+    for (const row of rows) {
+      if (row.kind === 'UnpaidReimbursable') {
+        sumUnpaidMinor += row.expense.amountMinor;
+      } else if (row.kind === 'EarlyReimbursement') {
+        sumEarlyMinor += row.expense.amountMinor;
+      }
+    }
+
+    const sumUnpaid = Money.fromMinor(sumUnpaidMinor, currency);
+    const sumEarly = Money.fromMinor(sumEarlyMinor, currency);
+    const netOwed = sumUnpaid.subtract(sumEarly);
+
+    return ok({
+      dateStart: range.start,
+      dateEnd: range.end,
+      currency,
+      sumUnpaid,
+      sumEarly,
+      netOwed,
+    });
+  }
 }
 
 function emptySummary(range: { month: string; start: Date; end: Date }): MonthlySummary {
@@ -138,3 +200,15 @@ function emptySummary(range: { month: string; start: Date; end: Date }): Monthly
     byMethod: [],
   };
 }
+
+function emptyNetOwed(range: { start: Date; end: Date }): NetOwedSnapshot {
+  return {
+    dateStart: range.start,
+    dateEnd: range.end,
+    currency: null,
+    sumUnpaid: null,
+    sumEarly: null,
+    netOwed: null,
+  };
+}
+

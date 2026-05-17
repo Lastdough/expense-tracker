@@ -234,8 +234,8 @@ Legal transitions are encoded in the value object. Illegal transitions return an
 
 `netOwed` and `availableBudget`:
 
-- `netOwed = sum(|Early|) – sum(Unpaid)` (positive means money is owed *to* the user)
-- `availableBudget = monthlyBudget – netOwed`
+- `netOwed = sum(Unpaid) – sum(|Early|)` (positive means money is owed *to* the user — `Unpaid` expenses are out-of-pocket and locked up until reimbursed; `Early` receipts offset that locked-up total)
+- `availableBudget = monthlyBudget – netOwed` (the user can spend less when reimbursements are pending, because that money is already committed)
 - Computed in the `reporting` context, NOT on the Expense aggregate. They're cross-aggregate calculations.
 
 ### Expenses are always positive

@@ -4,6 +4,7 @@ import { err, ok, type Result } from '../../../../shared-kernel/result/Result.js
 import { MixedCurrencyInRangeError } from '../../domain/errors/ReportingErrors.js';
 import { type IReportingReadRepository } from '../../domain/repositories/IReportingReadRepository.js';
 import { type MonthlySummary } from '../../domain/value-objects/MonthlySummary.js';
+import { type NetOwedSnapshot } from '../../domain/value-objects/NetOwed.js';
 import { GetMonthlySummary } from './GetMonthlySummary.js';
 
 class FakeRepo implements IReportingReadRepository {
@@ -17,6 +18,9 @@ class FakeRepo implements IReportingReadRepository {
   }): Promise<Result<MonthlySummary, MixedCurrencyInRangeError>> {
     this.capturedRange = range;
     return this.result;
+  }
+  async getNetOwed(): Promise<Result<NetOwedSnapshot, MixedCurrencyInRangeError>> {
+    throw new Error('not used in this test');
   }
 }
 

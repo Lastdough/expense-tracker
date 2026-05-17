@@ -4,5 +4,7 @@ import { type ReportingController } from '../controllers/makeReportingController
 export function reportingRoutes(controller: ReportingController): Router {
   const router = Router();
   router.get('/monthly-summary', controller.getMonthlySummary);
+  router.get('/net-owed', controller.getNetOwed);
+  router.get('/available-budget', controller.getAvailableBudget);
   return router;
 }

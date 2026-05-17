@@ -1,8 +1,18 @@
 import { type Request, type Response } from 'express';
 
 import { serializeMonthlySummary } from '../../../application/dto/MonthlySummaryView.js';
+import {
+  serializeAvailableBudget,
+  serializeNetOwed,
+} from '../../../application/dto/NetOwedView.js';
+import { type GetAvailableBudget } from '../../../application/use-cases/GetAvailableBudget.js';
 import { type GetMonthlySummary } from '../../../application/use-cases/GetMonthlySummary.js';
-import { MonthlySummaryQuery } from '../schemas/reportingSchemas.js';
+import { type GetNetOwed } from '../../../application/use-cases/GetNetOwed.js';
+import {
+  AvailableBudgetQuery,
+  MonthlySummaryQuery,
+  NetOwedQuery,
+} from '../schemas/reportingSchemas.js';
 
 interface DomainErrorLike {
   readonly code: string;
@@ -13,10 +23,14 @@ type Handler = (req: Request, res: Response) => Promise<void>;
 
 export interface ReportingController {
   readonly getMonthlySummary: Handler;
+  readonly getNetOwed: Handler;
+  readonly getAvailableBudget: Handler;
 }
 
 export interface ReportingControllerDeps {
   readonly getMonthlySummary: GetMonthlySummary;
+  readonly getNetOwed: GetNetOwed;
+  readonly getAvailableBudget: GetAvailableBudget;
 }
 
 export function makeReportingController(deps: ReportingControllerDeps): ReportingController {
@@ -34,6 +48,37 @@ export function makeReportingController(deps: ReportingControllerDeps): Reportin
       }
       res.json(serializeMonthlySummary(result.value));
     },
+
+    getNetOwed: async (req, res) => {
+      const query = NetOwedQuery.safeParse(req.query);
+      if (!query.success) {
+        res.status(400).json({ error: { code: 'invalid_request', issues: query.error.issues } });
+        return;
+      }
+      const result = await deps.getNetOwed.execute({
+        dateStart: new Date(query.data.dateStart),
+        dateEnd: new Date(query.data.dateEnd),
+      });
+      if (!result.ok) {
+        writeError(res, result.error);
+        return;
+      }
+      res.json(serializeNetOwed(result.value));
+    },
+
+    getAvailableBudget: async (req, res) => {
+      const query = AvailableBudgetQuery.safeParse(req.query);
+      if (!query.success) {
+        res.status(400).json({ error: { code: 'invalid_request', issues: query.error.issues } });
+        return;
+      }
+      const result = await deps.getAvailableBudget.execute({ month: query.data.month });
+      if (!result.ok) {
+        writeError(res, result.error);
+        return;
+      }
+      res.json(serializeAvailableBudget(result.value));
+    },
   };
 }
 
@@ -41,6 +86,7 @@ function statusForCode(code: string): number {
   if (code === 'invalid_month') return 400;
   if (code === 'invalid_date_range') return 400;
   if (code === 'mixed_currency_in_range') return 409;
+  if (code === 'budget_currency_mismatch') return 409;
   if (code.endsWith('_not_found')) return 404;
   if (code.startsWith('invalid_')) return 400;
   return 400;

@@ -11,3 +11,7 @@ export class InvalidDateRangeError extends DomainError {
 export class MixedCurrencyInRangeError extends DomainError {
   readonly code = 'mixed_currency_in_range';
 }
+
+export class BudgetCurrencyMismatchError extends DomainError {
+  readonly code = 'budget_currency_mismatch';
+}

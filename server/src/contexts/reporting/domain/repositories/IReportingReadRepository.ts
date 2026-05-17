@@ -1,6 +1,7 @@
 import { type Result } from '../../../../shared-kernel/result/Result.js';
 import { MixedCurrencyInRangeError } from '../errors/ReportingErrors.js';
 import { type MonthlySummary } from '../value-objects/MonthlySummary.js';
+import { type NetOwedSnapshot } from '../value-objects/NetOwed.js';
 
 /**
  * Read-side repository for the reporting context. Implementations query the
@@ -14,4 +15,9 @@ export interface IReportingReadRepository {
     start: Date;
     end: Date;
   }): Promise<Result<MonthlySummary, MixedCurrencyInRangeError>>;
+
+  getNetOwed(range: {
+    start: Date;
+    end: Date;
+  }): Promise<Result<NetOwedSnapshot, MixedCurrencyInRangeError>>;
 }
