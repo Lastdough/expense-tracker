@@ -2,8 +2,8 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 1 / Milestone G — Reimbursements context (Milestone F complete: Expense aggregate, repository, 5 use cases, HTTP, events)
-**Last updated:** 2026-05-16
+**Current milestone:** Phase 1 / Milestone H — Reporting context (Milestone G complete: Reimbursement state machine, aggregate, 5 transition + 3 read use cases, HTTP, events, auto-create on ExpenseRecorded)
+**Last updated:** 2026-05-17
 
 ---
 
@@ -98,12 +98,13 @@ Goal: stop using Sheets for new entries.
 
 ### Milestone G — Reimbursements context
 
-- [ ] `Reimbursement` value object encoding the state machine
-- [ ] Use cases for each legal transition: `MarkAsPaid`, `MarkAsPending`, `MarkAsEarly`, `MarkAsUnpaid`
-- [ ] Illegal transitions return `Result.err`, never throw
-- [ ] Domain events emitted on each transition
-- [ ] HTTP endpoints
-- [ ] Unit tests covering every legal and illegal transition
+- [x] `Reimbursement` value object encoding the state machine *(`ReimbursementState` discriminated union with five variants; date carriers (`PaidReimbursable`, `EarlyReimbursement`) bundle the date on the variant)*
+- [x] Use cases for each legal transition: `MarkAsPaid`, `MarkAsPending`, `MarkAsEarly`, `MarkAsUnpaid` *(plus `MarkAsNonReimbursable` for the `UnpaidReimbursable → NonReimbursable` mistake-fix path; see decisions log)*
+- [x] Illegal transitions return `Result.err`, never throw *(state machine + aggregate both; aggregate untouched on `err`)*
+- [x] Domain events emitted on each transition *(7 events: created, 5 mark-*, deleted)*
+- [x] HTTP endpoints *(`GET /api/reimbursements/:id`, `GET /by-expense/:expenseId`, `GET ?status=unpaid&dateStart=…&dateEnd=…`, `POST /:id/mark-{paid,pending,early,unpaid,non-reimbursable}`)*
+- [x] Unit tests covering every legal and illegal transition *(full 5×5 matrix on `ReimbursementState`, aggregate-level, plus per-use-case happy/illegal/not-found/invalid-id)*
+- [x] Auto-create Reimbursement on `ExpenseRecorded`; auto-delete on `ExpenseDeleted` *(via `application/event-handlers/`; idempotent on replay; `kind` enum on `ReimbursementStatus` makes the mapping rename-safe)*
 
 ### Milestone H — Reporting context (Phase 1 slice)
 
@@ -239,3 +240,8 @@ Use this section to record the *why* behind important choices, with date.
 - **2026-05-16** — `findUnpaidReimbursables` from the original Milestone F spec deferred to Milestone G when the `Reimbursement` VO defines what "Unpaid Reimbursable" means semantically. F ships with a richer `IExpenseRepository.search(criteria)` instead — the listing UI needs filters across all dimensions anyway.
 - **2026-05-16** — The Expense aggregate carries its own branded FK types (`CategoryRef`, `MethodRef`, `ReimbursementStatusRef`) rather than importing `CategoryId`/`MethodId`/`ReimbursementStatusId` from the categorization context. Reason: the dependency rule forbids cross-context domain imports. Cross-context validity checks go through three thin application-layer lookups in `categorization/application/services/` (`CategoryLookup.isActiveById` etc.) — boolean return keeps the categorization entity off the Expenses context's import surface.
 - **2026-05-16** — Description search uses Prisma `contains` without `mode: 'insensitive'`. The mode flag isn't on the SQLite generated client's `StringFilter` type, and SQLite's default LIKE is ASCII case-insensitive — good enough for dev and a single-user app. Postgres LIKE is case-sensitive — revisit (lowercased denormalized column or pg_trgm) if Postgres becomes the primary daily target before Milestone I (Quick-Add UI).
+- **2026-05-17** — `Reimbursement` is an aggregate (with its own `ReimbursementId`, 1:1 to `Expense` via unique `expenseId`), not a value object held on `Expense`. The CLAUDE.md phrasing "value object" refers to the state machine itself; the aggregate exists because the state + date payload + timestamps need their own identity and persistence row. The `Expense.reimbursementStatusId` (the user-facing label) is set at creation time and never updated by transitions — the `Reimbursement` aggregate is authoritative from then on. UI filtering by current state goes through `IReimbursementRepository.findUnpaidReimbursables` (and future siblings) in the reimbursements context.
+- **2026-05-17** — `ReimbursementStatus` (categorization) carries an immutable `kind` enum column so the reimbursements context can translate `Expense.reimbursementStatusId` into a `ReimbursementState.kind` without depending on the label (which the user can rename). New statuses created via the HTTP factory default to `kind = 'NonReimbursable'`; the five seeded statuses are backfilled to their canonical kinds in migration `20260516130000_reimbursement_status_kind`. The `ReimbursementStatusKindLookup` application service is the only cross-context bridge needed.
+- **2026-05-17** — Cross-context event subscription goes through thin re-export modules at the application layer (`expenses/application/events/index.ts`, `categorization/application/contracts/index.ts`). The dependency rule forbids `reimbursements/application/event-handlers/` from importing `expenses/domain/events/ExpenseRecorded.ts` directly; the re-export turns those classes into part of the source context's *application API* (which is what domain events conceptually are). dep-cruiser confirms no boundary violations.
+- **2026-05-17** — `UnpaidReimbursable → NonReimbursable` is the only mistake-fix transition; `PaidReimbursable` and `NonReimbursable` are otherwise terminal. The 5th use case `MarkAsNonReimbursable` exists in addition to the four listed in PLAN.md G to make the mistake path explicit at the HTTP boundary. Full mesh / "fix anything" was rejected as it would gut the state machine's invariant value.
+- **2026-05-17** — Reimbursement auto-creation lives in `reimbursements/application/event-handlers/CreateReimbursementOnExpenseRecorded`. For the date-bearing initial kinds (`PaidReimbursable`, `EarlyReimbursement`), the handler uses the recording's `now` as the seed date — the user corrects via the matching `mark-*` endpoint if it's wrong. Forcing a date prompt at expense-record time would have leaked reimbursement concerns into the Quick-Add Milestone-I screen.
