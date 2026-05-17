@@ -9,6 +9,7 @@ import { expenseRoutes } from './contexts/expenses/interfaces/http/routes/expens
 import { referenceRoutes } from './contexts/categorization/interfaces/http/routes/referenceRoutes.js';
 import { reimbursementRoutes } from './contexts/reimbursements/interfaces/http/routes/reimbursementRoutes.js';
 import { monthlyBudgetRoutes } from './contexts/budgeting/interfaces/http/routes/monthlyBudgetRoutes.js';
+import { reportingRoutes } from './contexts/reporting/interfaces/http/routes/reportingRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
   app.use('/api/reimbursement-statuses', referenceRoutes(container.reimbursementStatusController));
   app.use('/api/reimbursements', reimbursementRoutes(container.reimbursementController));
   app.use('/api/budget/monthly', monthlyBudgetRoutes(container.monthlyBudgetController));
+  app.use('/api/reports', reportingRoutes(container.reportingController));
 
   if (!config.isProd) {
     const clientReady = existsSync(path.join(clientDir, 'index.html'));

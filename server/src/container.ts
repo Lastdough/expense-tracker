@@ -80,6 +80,14 @@ import {
   type MonthlyBudgetController,
 } from './contexts/budgeting/interfaces/http/controllers/makeMonthlyBudgetController.js';
 
+// Reporting context
+import { GetMonthlySummary } from './contexts/reporting/application/use-cases/GetMonthlySummary.js';
+import { PrismaReportingReadRepository } from './contexts/reporting/infrastructure/persistence/prisma/PrismaReportingReadRepository.js';
+import {
+  makeReportingController,
+  type ReportingController,
+} from './contexts/reporting/interfaces/http/controllers/makeReportingController.js';
+
 // Reimbursements context
 import { ReimbursementStatusKindLookup } from './contexts/categorization/application/services/ReimbursementStatusKindLookup.js';
 import { GetReimbursement } from './contexts/reimbursements/application/use-cases/GetReimbursement.js';
@@ -106,6 +114,7 @@ export interface Container {
   readonly expenseController: ExpenseController;
   readonly reimbursementController: ReimbursementController;
   readonly monthlyBudgetController: MonthlyBudgetController;
+  readonly reportingController: ReportingController;
   shutdown(): Promise<void>;
 }
 
@@ -185,6 +194,12 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     set: new SetMonthlyBudget(monthlyBudgetRepo),
   });
 
+  // Reporting
+  const reportingReadRepo = new PrismaReportingReadRepository(prisma);
+  const reportingController = makeReportingController({
+    getMonthlySummary: new GetMonthlySummary(reportingReadRepo),
+  });
+
   // Auto-create / cleanup Reimbursement on Expense lifecycle.
   const createReimbursementHandler = new CreateReimbursementOnExpenseRecorded(
     reimbursementRepo,
@@ -212,6 +227,7 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     expenseController,
     reimbursementController,
     monthlyBudgetController,
+    reportingController,
     async shutdown() {
       for (const unsubscribe of unsubscribers) unsubscribe();
       await prisma.$disconnect();
