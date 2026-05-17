@@ -74,9 +74,26 @@ model Expense {
   category            Category            @relation(fields: [categoryId], references: [id])
   method              Method              @relation(fields: [methodId], references: [id])
   reimbursementStatus ReimbursementStatus @relation(fields: [reimbursementStatusId], references: [id])
+  reimbursement       Reimbursement?
 
   @@index([transactionDate])
   @@index([categoryId])
   @@index([methodId])
   @@index([reimbursementStatusId])
+}
+
+// ── Reimbursements context ──────────────────────────────────────────────────
+
+model Reimbursement {
+  id         String    @id
+  expenseId  String    @unique
+  kind       String
+  paidAt     DateTime?
+  receivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@index([kind])
 }

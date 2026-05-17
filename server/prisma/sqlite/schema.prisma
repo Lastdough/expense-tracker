@@ -86,9 +86,30 @@ model Expense {
   category            Category            @relation(fields: [categoryId], references: [id])
   method              Method              @relation(fields: [methodId], references: [id])
   reimbursementStatus ReimbursementStatus @relation(fields: [reimbursementStatusId], references: [id])
+  reimbursement       Reimbursement?
 
   @@index([transactionDate])
   @@index([categoryId])
   @@index([methodId])
   @@index([reimbursementStatusId])
+}
+
+// ── Reimbursements context ──────────────────────────────────────────────────
+// One Reimbursement per Expense (unique on expenseId). `kind` is the
+// discriminator for the state machine VO; `paidAt` / `receivedAt` carry the
+// only state-dependent payload. Cascade on delete is defense in depth —
+// the DeleteReimbursementOnExpenseDeleted handler is the primary path.
+
+model Reimbursement {
+  id         String    @id
+  expenseId  String    @unique
+  kind       String
+  paidAt     DateTime?
+  receivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@index([kind])
 }
