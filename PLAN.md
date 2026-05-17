@@ -2,7 +2,7 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 1 / Milestone H — Reporting context (Milestone G complete: Reimbursement state machine, aggregate, 5 transition + 3 read use cases, HTTP, events, auto-create on ExpenseRecorded)
+**Current milestone:** Phase 1 / Milestone I — Frontend (Quick-Add, lists, settings, dashboard) (Milestone H complete: budgeting shell + MonthlyBudget aggregate, reporting context with MonthlySummary / NetOwed / AvailableBudget / Receipt export in JSON+HTML+CSV; PDF deferred)
 **Last updated:** 2026-05-17
 
 ---
@@ -68,7 +68,7 @@ Goal: stop using Sheets for new entries.
 - [x] HTTP endpoints under `/api/categories`, `/api/methods`, `/api/reimbursement-statuses`
 - [x] Seed script (`pnpm --filter server seed`) — idempotent upsert by normalized name, exact colors from CLAUDE.md
 - [x] Frontend Settings page with full CRUD UI *(D.2 — `/settings` with three tabs: Categories table, Methods swatch grid, Statuses table; drag-to-reorder via @dnd-kit; native color picker + hex; responsive shell with side-rail/bottom-tabs; placeholder pages for other destinations)*
-- [ ] Inline "+ Add new..." option at the bottom of every dropdown *(deferred to Milestone I when Quick-Add screen consumes the dropdown component)*
+- [ ] Inline "+ Add new..." option at the bottom of every dropdown *(deferred to Milestone I when Quick-Add screen consumes the dropdown component — also listed in Milestone I "Carryovers" so it's surfaced when I starts)*
 
 ### Bug Fixes 1, Before doing the next Milestone
 - [x] Duplicated Code in Server Controller, make a controller factory *(makeReferenceController<T> + shared helpers — parseBody, readIdParam, respondOne/Many; collapses 3 controllers to 1)*
@@ -108,15 +108,36 @@ Goal: stop using Sheets for new entries.
 
 ### Milestone H — Reporting context (Phase 1 slice)
 
-- [ ] `MonthlySummary` projection: total expenses, by-category breakdown, by-method breakdown
-- [ ] `NetOwedCalculator`: `sum(Unpaid) - sum(|Early|)` over a date range
-- [ ] `AvailableBudget` (depends on monthly budget — for Phase 1, monthly budget is a config value; budgeting context comes in Phase 3)
-- [ ] **Receipt export**: aggregate by description, group `Unpaid` and `Early` (negative), grand total = "amount currently owed to you"
-- [ ] Output formats: rendered HTML page (printable), PDF (Puppeteer renders the same HTML), CSV
-- [ ] HTTP endpoints
+- [x] `MonthlySummary` projection: total expenses, by-category breakdown, by-method breakdown *(sorted desc by total; mixed-currency in range surfaces as `MixedCurrencyInRangeError` → 409)*
+- [x] `NetOwedCalculator`: `sum(Unpaid) - sum(|Early|)` over a date range *(positive = money owed to user; docs corrected vs the pre-H spec — see decisions log 2026-05-17 netOwed)*
+- [x] `AvailableBudget` *(reads from H.0 budgeting context; `BudgetCurrencyMismatchError` if budget currency ≠ expenses currency)*
+- [x] **Receipt export**: aggregate by description, group `Unpaid` and `Early` (negative), grand total = "amount currently owed to you"
+- [x] Output formats: rendered HTML page (printable), CSV *(JSON also supported as the default `format=json`; PDF deferred — see decisions log)*
+- [x] HTTP endpoints *(`GET /api/reports/monthly-summary?month=YYYY-MM`, `/net-owed?dateStart=&dateEnd=`, `/available-budget?month=YYYY-MM`, `/receipt?dateStart=&dateEnd=&format=json|html|csv`; plus H.0's `GET/PUT /api/budget/monthly`)*
+
+### Milestone H.0 — Budgeting context shell (added during H)
+
+- [x] `MonthlyBudget` singleton aggregate *(PK fixed to `'singleton'`; Phase 3's full budgeting context supersedes this)*
+- [x] `GetMonthlyBudget` + `SetMonthlyBudget` use cases; idempotent upsert in the repo
+- [x] HTTP endpoints *(`GET /api/budget/monthly`, `PUT /api/budget/monthly` with `{ amountMajor, currency }` body)*
+
+### Milestone H.4 — Receipt PDF (deferred, run AFTER Milestone I)
+
+Deferred from H.3. Scheduled after Milestone I so the HTML layout is locked in by the Settings/Reports UI before being baked into PDF rendering. Do not start until I lands.
+
+- [ ] Pick PDF library (re-ask: Puppeteer for HTML→PDF fidelity vs. pdfkit for size/cold-start)
+- [ ] If Puppeteer: add to dependencies (user approval required per CLAUDE.md), document Docker image impact (~150MB Chromium)
+- [ ] Implement `renderReceiptPdf(receipt: Receipt): Promise<Buffer>` in `reporting/application/renderers/` (mirror existing `receiptHtml.ts` / `receiptCsv.ts` placement; revisit if a non-receipt PDF becomes needed)
+- [ ] Wire `format=pdf` into `ReceiptQuery` + controller; set `Content-Type: application/pdf` and `Content-Disposition: attachment`
+- [ ] Tests: golden-output PDF byte assertions are flaky, so test the *call boundary* (renderer invoked, content-type set) plus a snapshot of the intermediate HTML if reusing `renderReceiptHtml`
 
 ### Milestone I — Frontend (Phase 1 slice)
 
+**Carryovers from earlier milestones to land in I:**
+- [ ] Inline "+ Add new..." at the bottom of every reference-data dropdown *(deferred from Milestone D — the dropdown component first lives in the Quick-Add screen below; once it exists, retrofit it for the Settings page too)*
+- [ ] Monthly-budget setter UI in Settings *(uses `PUT /api/budget/monthly` shipped in H.0; needed before AvailableBudget renders anywhere)*
+
+**Core I scope:**
 - [ ] **Quick-Add screen** (the daily driver — see CLAUDE.md for spec)
   - Mobile-first layout
   - Field order, defaults, autofocus, submit-on-Enter
@@ -124,9 +145,9 @@ Goal: stop using Sheets for new entries.
   - Per-field last-used memory
 - [ ] Expenses list view with all filters from Milestone F
 - [ ] Expense detail/edit page with reimbursement transition controls
-- [ ] Settings page (built in Milestone D)
-- [ ] Receipt export page (HTML view + download buttons for PDF / CSV)
-- [ ] A simple dashboard: this-month total + by-category breakdown (no charts yet)
+- [ ] Settings page extended with the budget setter + revisit of the D categorization tabs (built in Milestone D, retrofitted with the "+ Add new..." inline option once the Quick-Add dropdown exists)
+- [ ] Receipt export page (HTML view + CSV download button; PDF button arrives with H.4 — leave the slot/disabled state in place if H.4 lands before I ships, otherwise skip the PDF button entirely)
+- [ ] A simple dashboard: this-month total + by-category breakdown (no charts yet) + AvailableBudget tile (uses H.2's `/api/reports/available-budget`)
 
 ### Milestone J — Sheets import
 
@@ -245,3 +266,8 @@ Use this section to record the *why* behind important choices, with date.
 - **2026-05-17** — Cross-context event subscription goes through thin re-export modules at the application layer (`expenses/application/events/index.ts`, `categorization/application/contracts/index.ts`). The dependency rule forbids `reimbursements/application/event-handlers/` from importing `expenses/domain/events/ExpenseRecorded.ts` directly; the re-export turns those classes into part of the source context's *application API* (which is what domain events conceptually are). dep-cruiser confirms no boundary violations.
 - **2026-05-17** — `UnpaidReimbursable → NonReimbursable` is the only mistake-fix transition; `PaidReimbursable` and `NonReimbursable` are otherwise terminal. The 5th use case `MarkAsNonReimbursable` exists in addition to the four listed in PLAN.md G to make the mistake path explicit at the HTTP boundary. Full mesh / "fix anything" was rejected as it would gut the state machine's invariant value.
 - **2026-05-17** — Reimbursement auto-creation lives in `reimbursements/application/event-handlers/CreateReimbursementOnExpenseRecorded`. For the date-bearing initial kinds (`PaidReimbursable`, `EarlyReimbursement`), the handler uses the recording's `now` as the seed date — the user corrects via the matching `mark-*` endpoint if it's wrong. Forcing a date prompt at expense-record time would have leaked reimbursement concerns into the Quick-Add Milestone-I screen.
+- **2026-05-17** — `netOwed` sign convention corrected. Previous spec read `sum(|Early|) - sum(Unpaid)` "positive means money is owed to the user" — internally inconsistent: 1M Unpaid + 0 Early gave `netOwed = -1M` and therefore `availableBudget = monthlyBudget + 1M`, meaning the more people owed the user, the *more* they could spend. The receipt export already described the natural reading. Both docs and code now use `sum(Unpaid) - sum(|Early|)` — positive = money owed *to* the user — and `availableBudget = monthlyBudget - netOwed` correctly reduces spendable budget as pending reimbursements pile up.
+- **2026-05-17** — Phase-1 monthly budget lives in a singleton DB row (`MonthlyBudget` aggregate, PK fixed to `'singleton'`) inside a new minimal `budgeting` context, not in an env var as the original H spec suggested. Reason: the budget needs to be editable from the Settings UI in Milestone I without a redeploy; PLAN.md's "monthly budget is a config value" note was authored before Settings existed. Phase 3's full budgeting context (per-category `Budget`) will supersede this with a migration; the singleton-shell keeps the door open.
+- **2026-05-17** — Reporting owns its own Prisma read repository (`PrismaReportingReadRepository`) that queries `Expense` / `Category` / `Method` / `Reimbursement` tables directly via `aggregate` + `groupBy`, rather than calling other contexts' application use cases. The dependency rule isn't violated because the read repo is *infrastructure* and never imports another context's source files — Prisma sees the shared database, not the context boundary. Calling `ListExpenses` from reporting was rejected because it would have force-loaded full Expense aggregates into memory for what are read-side projections, and would have re-implemented filtering across two contexts.
+- **2026-05-17** — Receipt PDF rendering deferred. Original H spec called for Puppeteer (HTML→PDF). Skipped for now because (a) Puppeteer ships a ~150MB Chromium and slows cold start, (b) the HTML layout isn't locked in until Milestone I's Settings/Reports UI shapes the design, and (c) HTML + CSV cover the immediate "send my friend the receipt" / "import into a spreadsheet" use cases. PDF revisited as H.4 (or its own micro-milestone) once Milestone I lands.
+- **2026-05-17** — Reporting renderers (`receiptHtml`, `receiptCsv`) live in `reporting/application/renderers/`, not `interfaces/http/`. The dep rule forbids `interfaces/` from importing `domain/` directly, and renderers are pure `Receipt` → `string` transformations with no req/res coupling — that's an application concern. The controller in `interfaces/http/` sets `Content-Type` / `Content-Disposition` and pipes the rendered string. Same pattern will apply to any future PDF renderer.
