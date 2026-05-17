@@ -36,6 +36,9 @@ class FakeReportingRepo implements IReportingReadRepository {
   async getNetOwed(): Promise<Result<NetOwedSnapshot, MixedCurrencyInRangeError>> {
     return this.snapshot;
   }
+  async getReceipt(): Promise<Result<import('../../domain/value-objects/Receipt.js').Receipt, MixedCurrencyInRangeError>> {
+    throw new Error('not used');
+  }
 }
 
 function makeUseCase(): {

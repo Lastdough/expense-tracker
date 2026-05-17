@@ -22,6 +22,9 @@ class FakeRepo implements IReportingReadRepository {
   async getNetOwed(): Promise<Result<NetOwedSnapshot, MixedCurrencyInRangeError>> {
     throw new Error('not used in this test');
   }
+  async getReceipt(): Promise<Result<import('../../domain/value-objects/Receipt.js').Receipt, MixedCurrencyInRangeError>> {
+    throw new Error('not used in this test');
+  }
 }
 
 function emptySummary(month: string): MonthlySummary {

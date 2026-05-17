@@ -11,6 +11,7 @@ import {
   type MonthlySummary,
 } from '../../../domain/value-objects/MonthlySummary.js';
 import { type NetOwedSnapshot } from '../../../domain/value-objects/NetOwed.js';
+import { type Receipt, type ReceiptLine } from '../../../domain/value-objects/Receipt.js';
 
 /**
  * Read-only Prisma-backed implementation. Reads Expense + Category + Method
@@ -186,6 +187,94 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
       netOwed,
     });
   }
+
+  async getReceipt(range: {
+    start: Date;
+    end: Date;
+  }): Promise<Result<Receipt, MixedCurrencyInRangeError>> {
+    const rows = await this.prisma.reimbursement.findMany({
+      where: {
+        kind: { in: ['UnpaidReimbursable', 'EarlyReimbursement'] },
+        expense: { transactionDate: { gte: range.start, lt: range.end } },
+      },
+      select: {
+        kind: true,
+        expense: { select: { amountMinor: true, currency: true, description: true } },
+      },
+    });
+
+    if (rows.length === 0) {
+      return ok(emptyReceipt(range));
+    }
+
+    const currencySet = new Set(rows.map((r) => r.expense.currency));
+    if (currencySet.size > 1) {
+      const list = [...currencySet].join(', ');
+      return err(
+        new MixedCurrencyInRangeError(
+          `Cannot build receipt: range contains mixed currencies (${list})`,
+        ),
+      );
+    }
+    const [currencyRaw] = currencySet;
+    if (currencyRaw === undefined || !isCurrency(currencyRaw)) {
+      throw new RangeError(
+        `PrismaReportingReadRepository: persisted currency "${currencyRaw}" is not supported`,
+      );
+    }
+    const currency = currencyRaw;
+
+    interface Acc {
+      unpaidMinor: bigint;
+      earlyMinor: bigint;
+      unpaidCount: number;
+      earlyCount: number;
+    }
+    const byDesc = new Map<string, Acc>();
+    for (const row of rows) {
+      const key = row.expense.description;
+      const acc = byDesc.get(key) ?? {
+        unpaidMinor: 0n,
+        earlyMinor: 0n,
+        unpaidCount: 0,
+        earlyCount: 0,
+      };
+      if (row.kind === 'UnpaidReimbursable') {
+        acc.unpaidMinor += row.expense.amountMinor;
+        acc.unpaidCount += 1;
+      } else if (row.kind === 'EarlyReimbursement') {
+        acc.earlyMinor += row.expense.amountMinor;
+        acc.earlyCount += 1;
+      }
+      byDesc.set(key, acc);
+    }
+
+    const lines: ReceiptLine[] = [...byDesc.entries()]
+      .map(([description, acc]) => {
+        const unpaidTotal = Money.fromMinor(acc.unpaidMinor, currency);
+        const earlyTotal = Money.fromMinor(acc.earlyMinor, currency);
+        return {
+          description,
+          unpaidTotal,
+          earlyTotal,
+          total: unpaidTotal.subtract(earlyTotal),
+          unpaidCount: acc.unpaidCount,
+          earlyCount: acc.earlyCount,
+        };
+      })
+      .sort((a, b) => b.total.compare(a.total));
+
+    let grandTotalMinor = 0n;
+    for (const line of lines) grandTotalMinor += line.total.amount;
+
+    return ok({
+      dateStart: range.start,
+      dateEnd: range.end,
+      currency,
+      lines,
+      grandTotal: Money.fromMinor(grandTotalMinor, currency),
+    });
+  }
 }
 
 function emptySummary(range: { month: string; start: Date; end: Date }): MonthlySummary {
@@ -209,6 +298,16 @@ function emptyNetOwed(range: { start: Date; end: Date }): NetOwedSnapshot {
     sumUnpaid: null,
     sumEarly: null,
     netOwed: null,
+  };
+}
+
+function emptyReceipt(range: { start: Date; end: Date }): Receipt {
+  return {
+    dateStart: range.start,
+    dateEnd: range.end,
+    currency: null,
+    lines: [],
+    grandTotal: null,
   };
 }
 

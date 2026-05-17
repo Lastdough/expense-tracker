@@ -18,3 +18,9 @@ export const NetOwedQuery = z.object({
 export const AvailableBudgetQuery = z.object({
   month: MonthString,
 });
+
+export const ReceiptQuery = z.object({
+  dateStart: Iso,
+  dateEnd: Iso,
+  format: z.enum(['json', 'html', 'csv']).default('json'),
+});

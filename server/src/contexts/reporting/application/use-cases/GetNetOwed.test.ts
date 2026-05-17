@@ -27,6 +27,9 @@ class FakeRepo implements IReportingReadRepository {
     this.captured = range;
     return this.netOwedResult;
   }
+  async getReceipt(): Promise<Result<import('../../domain/value-objects/Receipt.js').Receipt, MixedCurrencyInRangeError>> {
+    throw new Error('not used');
+  }
 }
 
 const D = (s: string) => new Date(s);

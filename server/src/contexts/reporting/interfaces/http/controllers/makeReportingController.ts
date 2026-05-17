@@ -5,13 +5,18 @@ import {
   serializeAvailableBudget,
   serializeNetOwed,
 } from '../../../application/dto/NetOwedView.js';
+import { serializeReceipt } from '../../../application/dto/ReceiptView.js';
 import { type GetAvailableBudget } from '../../../application/use-cases/GetAvailableBudget.js';
 import { type GetMonthlySummary } from '../../../application/use-cases/GetMonthlySummary.js';
 import { type GetNetOwed } from '../../../application/use-cases/GetNetOwed.js';
+import { type GetReceipt } from '../../../application/use-cases/GetReceipt.js';
+import { renderReceiptCsv } from '../../../application/renderers/receiptCsv.js';
+import { renderReceiptHtml } from '../../../application/renderers/receiptHtml.js';
 import {
   AvailableBudgetQuery,
   MonthlySummaryQuery,
   NetOwedQuery,
+  ReceiptQuery,
 } from '../schemas/reportingSchemas.js';
 
 interface DomainErrorLike {
@@ -25,12 +30,14 @@ export interface ReportingController {
   readonly getMonthlySummary: Handler;
   readonly getNetOwed: Handler;
   readonly getAvailableBudget: Handler;
+  readonly getReceipt: Handler;
 }
 
 export interface ReportingControllerDeps {
   readonly getMonthlySummary: GetMonthlySummary;
   readonly getNetOwed: GetNetOwed;
   readonly getAvailableBudget: GetAvailableBudget;
+  readonly getReceipt: GetReceipt;
 }
 
 export function makeReportingController(deps: ReportingControllerDeps): ReportingController {
@@ -78,6 +85,40 @@ export function makeReportingController(deps: ReportingControllerDeps): Reportin
         return;
       }
       res.json(serializeAvailableBudget(result.value));
+    },
+
+    getReceipt: async (req, res) => {
+      const query = ReceiptQuery.safeParse(req.query);
+      if (!query.success) {
+        res.status(400).json({ error: { code: 'invalid_request', issues: query.error.issues } });
+        return;
+      }
+      const result = await deps.getReceipt.execute({
+        dateStart: new Date(query.data.dateStart),
+        dateEnd: new Date(query.data.dateEnd),
+      });
+      if (!result.ok) {
+        writeError(res, result.error);
+        return;
+      }
+      const receipt = result.value;
+      switch (query.data.format) {
+        case 'html':
+          res.set('Content-Type', 'text/html; charset=utf-8');
+          res.send(renderReceiptHtml(receipt));
+          return;
+        case 'csv': {
+          const filename = `receipt-${query.data.dateStart.slice(0, 10)}_${query.data.dateEnd.slice(0, 10)}.csv`;
+          res.set('Content-Type', 'text/csv; charset=utf-8');
+          res.set('Content-Disposition', `attachment; filename="${filename}"`);
+          res.send(renderReceiptCsv(receipt));
+          return;
+        }
+        case 'json':
+        default:
+          res.json(serializeReceipt(receipt));
+          return;
+      }
     },
   };
 }

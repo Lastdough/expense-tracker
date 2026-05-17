@@ -84,6 +84,7 @@ import {
 import { GetAvailableBudget } from './contexts/reporting/application/use-cases/GetAvailableBudget.js';
 import { GetMonthlySummary } from './contexts/reporting/application/use-cases/GetMonthlySummary.js';
 import { GetNetOwed } from './contexts/reporting/application/use-cases/GetNetOwed.js';
+import { GetReceipt } from './contexts/reporting/application/use-cases/GetReceipt.js';
 import { PrismaReportingReadRepository } from './contexts/reporting/infrastructure/persistence/prisma/PrismaReportingReadRepository.js';
 import {
   makeReportingController,
@@ -204,6 +205,7 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     getMonthlySummary: new GetMonthlySummary(reportingReadRepo),
     getNetOwed,
     getAvailableBudget: new GetAvailableBudget(getMonthlyBudget, getNetOwed),
+    getReceipt: new GetReceipt(reportingReadRepo),
   });
 
   // Auto-create / cleanup Reimbursement on Expense lifecycle.
