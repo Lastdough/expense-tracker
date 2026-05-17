@@ -51,7 +51,14 @@ export function ReferenceDataTab<T extends ReferenceView>({
   const [drawer, setDrawer] = useState<DrawerState<T>>(null);
 
   useEffect(() => {
-    onCountChange?.(data.items.length);
+    // onCountChange?.(data.items.length);
+    if (!data?.items) return;
+
+    // Filter out the archived items.
+    // (You will need to change 'isArchived' to match whatever property your data actually uses!)
+    const activeCount = data.items.filter((item) => !item.isArchived).length;
+
+    onCountChange?.(activeCount);
   }, [data.items.length, onCountChange]);
 
   const initialValues: DrawerValues =

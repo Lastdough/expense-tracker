@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { CategoriesTab } from './CategoriesTab';
-import { MethodsTab } from './MethodsTab';
-import { StatusesTab } from './StatusesTab';
-import { Toast, type ToastState } from './components/Toast';
+import {useCallback, useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
+import {CategoriesTab} from './CategoriesTab';
+import {MethodsTab} from './MethodsTab';
+import {StatusesTab} from './StatusesTab';
+import {Toast, type ToastState} from './components/Toast';
 
 type TabId = 'categories' | 'methods' | 'statuses';
 
@@ -13,9 +13,9 @@ interface TabDef {
 }
 
 const TABS: ReadonlyArray<TabDef> = [
-  { id: 'categories', label: 'Categories' },
-  { id: 'methods', label: 'Methods' },
-  { id: 'statuses', label: 'Statuses' },
+  {id: 'categories', label: 'Categories'},
+  {id: 'methods', label: 'Methods'},
+  {id: 'statuses', label: 'Statuses'},
 ];
 
 function isTabId(v: string | null): v is TabId {
@@ -28,7 +28,7 @@ export default function SettingsPage() {
   const setTab = (next: TabId) => {
     const p = new URLSearchParams(params);
     p.set('tab', next);
-    setParams(p, { replace: true });
+    setParams(p, {replace: true});
   };
 
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -39,15 +39,15 @@ export default function SettingsPage() {
   });
 
   const onSuccess = useCallback(
-    (message: string) => setToast({ id: Date.now(), kind: 'success', message }),
+    (message: string) => setToast({id: Date.now(), kind: 'success', message}),
     [],
   );
   const onError = useCallback(
-    (message: string) => setToast({ id: Date.now(), kind: 'error', message }),
+    (message: string) => setToast({id: Date.now(), kind: 'error', message}),
     [],
   );
   const setCount = useCallback(
-    (which: TabId) => (n: number) => setCounts((prev) => (prev[which] === n ? prev : { ...prev, [which]: n })),
+    (which: TabId) => (n: number) => setCounts((prev) => (prev[which] === n ? prev : {...prev, [which]: n})),
     [],
   );
 
@@ -64,7 +64,7 @@ export default function SettingsPage() {
             </h1>
           </div>
           <p className="hidden md:block text-[12px] text-ink-3 max-w-sm text-right leading-relaxed">
-            These chips are used everywhere — Quick&nbsp;Add, lists, dashboard. Renames update in
+            These chips are used everywhere — Quick Add, lists, dashboard. Renames update in
             place; archive instead of delete to preserve history.
           </p>
         </div>
@@ -100,18 +100,18 @@ export default function SettingsPage() {
       </header>
 
       <div className="flex-1 min-h-0 overflow-y-auto bg-paper">
-        {tab === 'categories' && (
-          <CategoriesTab onSuccess={onSuccess} onError={onError} onCountChange={setCount('categories')} />
-        )}
-        {tab === 'methods' && (
-          <MethodsTab onSuccess={onSuccess} onError={onError} onCountChange={setCount('methods')} />
-        )}
-        {tab === 'statuses' && (
-          <StatusesTab onSuccess={onSuccess} onError={onError} onCountChange={setCount('statuses')} />
-        )}
+        <div className={tab === 'categories' ? 'block' : 'hidden'}>
+          <CategoriesTab onSuccess={onSuccess} onError={onError} onCountChange={setCount('categories')}/>
+        </div>
+        <div className={tab === 'methods' ? 'block' : 'hidden'}>
+          <MethodsTab onSuccess={onSuccess} onError={onError} onCountChange={setCount('methods')}/>
+        </div>
+        <div className={tab === 'statuses' ? 'block' : 'hidden'}>
+          <StatusesTab onSuccess={onSuccess} onError={onError} onCountChange={setCount('statuses')}/>
+        </div>
       </div>
 
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <Toast toast={toast} onDismiss={() => setToast(null)}/>
     </div>
   );
 }
