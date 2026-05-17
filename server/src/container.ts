@@ -71,6 +71,15 @@ import {
   ExpenseRecorded,
 } from './contexts/expenses/application/events/index.js';
 
+// Budgeting context
+import { GetMonthlyBudget } from './contexts/budgeting/application/use-cases/GetMonthlyBudget.js';
+import { SetMonthlyBudget } from './contexts/budgeting/application/use-cases/SetMonthlyBudget.js';
+import { PrismaMonthlyBudgetRepository } from './contexts/budgeting/infrastructure/persistence/prisma/PrismaMonthlyBudgetRepository.js';
+import {
+  makeMonthlyBudgetController,
+  type MonthlyBudgetController,
+} from './contexts/budgeting/interfaces/http/controllers/makeMonthlyBudgetController.js';
+
 // Reimbursements context
 import { ReimbursementStatusKindLookup } from './contexts/categorization/application/services/ReimbursementStatusKindLookup.js';
 import { GetReimbursement } from './contexts/reimbursements/application/use-cases/GetReimbursement.js';
@@ -96,6 +105,7 @@ export interface Container {
   readonly reimbursementStatusController: ReferenceController;
   readonly expenseController: ExpenseController;
   readonly reimbursementController: ReimbursementController;
+  readonly monthlyBudgetController: MonthlyBudgetController;
   shutdown(): Promise<void>;
 }
 
@@ -168,6 +178,13 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     markNonReimbursable: new MarkAsNonReimbursable(reimbursementRepo, eventBus),
   });
 
+  // Budgeting
+  const monthlyBudgetRepo = new PrismaMonthlyBudgetRepository(prisma);
+  const monthlyBudgetController = makeMonthlyBudgetController({
+    get: new GetMonthlyBudget(monthlyBudgetRepo),
+    set: new SetMonthlyBudget(monthlyBudgetRepo),
+  });
+
   // Auto-create / cleanup Reimbursement on Expense lifecycle.
   const createReimbursementHandler = new CreateReimbursementOnExpenseRecorded(
     reimbursementRepo,
@@ -194,6 +211,7 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     reimbursementStatusController,
     expenseController,
     reimbursementController,
+    monthlyBudgetController,
     async shutdown() {
       for (const unsubscribe of unsubscribers) unsubscribe();
       await prisma.$disconnect();

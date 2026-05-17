@@ -113,3 +113,17 @@ model Reimbursement {
 
   @@index([kind])
 }
+
+// ── Budgeting context ───────────────────────────────────────────────────────
+// Singleton row (PK fixed to 'singleton') holding the Phase-1 global monthly
+// budget. Phase 3's full budgeting context will supersede this with a richer
+// per-category Budget aggregate; the current shape keeps the door open
+// without committing to that schema yet.
+
+model MonthlyBudget {
+  id          String   @id @default("singleton")
+  amountMinor BigInt
+  currency    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}

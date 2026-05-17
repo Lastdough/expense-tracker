@@ -97,3 +97,13 @@ model Reimbursement {
 
   @@index([kind])
 }
+
+// ── Budgeting context ───────────────────────────────────────────────────────
+
+model MonthlyBudget {
+  id          String   @id @default("singleton")
+  amountMinor BigInt
+  currency    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
