@@ -44,8 +44,24 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
+async function requestText(method: string, path: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}${path}`, { method });
+  if (!res.ok) throw await parseError(res);
+  return res.text();
+}
+
 export const http = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
+  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
+  del: <T = void>(path: string) => request<T>('DELETE', path),
+  getText: (path: string) => requestText('GET', path),
 };
+
+// Absolute URL builder for `<a download>` links — the browser triggers the
+// download directly (no fetch on our side), so it needs to know the full URL
+// in decoupled mode where the API isn't same-origin.
+export function absoluteUrl(path: string): string {
+  return `${BASE_URL}${path}`;
+}

@@ -19,3 +19,10 @@ client/dist
 
 .vscode
 .idea
+.trash
+
+
+# for now
+# /docs/design/*
+.claude/insomnia/*
+.claude/plans/*

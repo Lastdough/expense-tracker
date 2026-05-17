@@ -1,22 +1,24 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './shell/Layout';
-import QuickAddPlaceholder from './routes/QuickAddPlaceholder';
-import ExpensesPlaceholder from './routes/ExpensesPlaceholder';
-import DashboardPlaceholder from './routes/DashboardPlaceholder';
-import ReceiptPlaceholder from './routes/ReceiptPlaceholder';
+import QuickAdd from './routes/QuickAdd';
+import Expenses from './routes/Expenses';
+import ExpenseDetail from './routes/ExpenseDetail';
+import Dashboard from './routes/Dashboard';
+import Receipt from './routes/Receipt';
 import SettingsPage from './routes/settings/SettingsPage';
 
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Navigate to="/settings" replace />} />
-        <Route path="quick-add" element={<QuickAddPlaceholder />} />
-        <Route path="expenses" element={<ExpensesPlaceholder />} />
-        <Route path="dashboard" element={<DashboardPlaceholder />} />
-        <Route path="receipt" element={<ReceiptPlaceholder />} />
+        <Route index element={<Navigate to="/quick-add" replace />} />
+        <Route path="quick-add" element={<QuickAdd />} />
+        <Route path="expenses" element={<Expenses />} />
+        <Route path="expenses/:id" element={<ExpenseDetail />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="receipt" element={<Receipt />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/settings" replace />} />
+        <Route path="*" element={<Navigate to="/quick-add" replace />} />
       </Route>
     </Routes>
   );

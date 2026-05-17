@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Expense Tracker · Phase 1 wireframes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; color: #1a1612; }
+    #root { width: 100vw; min-height: 100vh; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="wireframes/common.jsx"></script>
+  <script type="text/babel" src="wireframes/shell.jsx"></script>
+  <script type="text/babel" src="wireframes/quick-add.jsx"></script>
+  <script type="text/babel" src="wireframes/expenses-list.jsx"></script>
+  <script type="text/babel" src="wireframes/expense-detail.jsx"></script>
+  <script type="text/babel" src="wireframes/settings.jsx"></script>
+  <script type="text/babel" src="wireframes/receipt.jsx"></script>
+  <script type="text/babel" src="wireframes/dashboard.jsx"></script>
+
+  <script type="text/babel" data-presets="react">
+    function App() {
+      return (
+        <DesignCanvas>
+
+          <DCSection id="intro" title="Expense Tracker · Phase 1 wireframes"
+                     subtitle="3 variations per surface · sketchy/typed · real chip colors from CLAUDE.md">
+            <DCArtboard id="legend" label="Legend / system" width={420} height={680}>
+              <div style={{ height: '100%', padding: 20, background: PAPER, display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13, lineHeight: 1.45 }}>
+                <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: -0.4 }}>The system, on one page</div>
+                <div style={{ fontFamily: 'Caveat, cursive', fontSize: 17, color: INK_SOFT, marginTop: -8 }}>read this before reviewing anything else</div>
+
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.3, color: INK_SOFT }}>Type</div>
+                  <div><b>Inter</b> for body · <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>JetBrains Mono</span> for amounts & ids · <span style={{ fontFamily: 'Caveat, cursive', fontSize: 16 }}>Caveat</span> for sketchy labels & annotations</div>
+                </div>
+
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.3, color: INK_SOFT }}>Ink</div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
+                    <span style={{ width: 22, height: 22, background: INK, border: `1.25px solid ${INK}` }} />
+                    <span style={{ width: 22, height: 22, background: INK_SOFT, border: `1.25px solid ${INK}` }} />
+                    <span style={{ width: 22, height: 22, background: PAPER, border: `1.25px solid ${INK}` }} />
+                    <span style={{ width: 22, height: 22, background: PAPER_2, border: `1.25px solid ${INK}` }} />
+                    <span style={{ width: 22, height: 22, background: ACCENT, border: `1.25px solid ${INK}` }} />
+                    <span style={{ fontFamily: 'Caveat, cursive', fontSize: 14, color: INK_SOFT, marginLeft: 4 }}>ink · soft · paper · paper-2 · accent (annotations only)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.3, color: INK_SOFT }}>Reference chips (exact CLAUDE.md colors)</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                    {CATEGORIES.map(c => <Chip key={c.name} token={c} size="sm" />)}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                    {METHODS.map(m => <Chip key={m.name} token={m} size="sm" />)}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                    {STATUSES.map(s => <Chip key={s.name} token={s} size="sm" />)}
+                  </div>
+                </div>
+
+                <Scribble />
+
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.3, color: INK_SOFT }}>How to read this canvas</div>
+                  <ul style={{ paddingLeft: 18, margin: '4px 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <li>Each row below is one screen, three variations across.</li>
+                    <li>Quick-Add is mobile-first; everything else is desktop-first.</li>
+                    <li>Solid borders = decided; dashed = placeholder / open.</li>
+                    <li><span style={{ fontFamily: 'Caveat, cursive', color: ACCENT, fontSize: 15 }}>marker red annotations</span> call out behaviour, not visuals.</li>
+                    <li>Open any artboard fullscreen via the ⤢ icon on its label.</li>
+                  </ul>
+                </div>
+
+                <div style={{ marginTop: 'auto', fontFamily: 'Caveat, cursive', fontSize: 15, color: INK_SOFT }}>
+                  IDR formatting: thousands separator <b>.</b> (Indonesian).
+                </div>
+              </div>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="shell" title="Shell & navigation"
+                     subtitle="Where everything lives — same destinations, different chrome">
+            <DCArtboard id="shell-a" label="A · Mobile bottom tabs" width={340} height={680}>
+              <ShellMobileTabs />
+            </DCArtboard>
+            <DCArtboard id="shell-b" label="B · Desktop side rail" width={1180} height={720}>
+              <ShellSideRail />
+            </DCArtboard>
+            <DCArtboard id="shell-c" label="C · Desktop top tabs" width={1180} height={720}>
+              <ShellTopTabs />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="quickadd" title="Quick-Add"
+                     subtitle="The daily driver. Mobile-first. Three different interaction models — pick the one that earns the keystrokes.">
+            <DCArtboard id="qa-a" label="A · Keypad-first" width={340} height={680}>
+              <QuickAddKeypad />
+            </DCArtboard>
+            <DCArtboard id="qa-b" label="B · Stepper (one field per screen)" width={340} height={680}>
+              <QuickAddStepper />
+            </DCArtboard>
+            <DCArtboard id="qa-c" label="C · Dense single-screen grid" width={340} height={680}>
+              <QuickAddDense />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="list" title="Expenses list"
+                     subtitle="Desktop-first. Density vs. legibility vs. narrative.">
+            <DCArtboard id="list-a" label="A · Compact table" width={1180} height={720}>
+              <ExpensesTable />
+            </DCArtboard>
+            <DCArtboard id="list-b" label="B · Spacious cards + side filters" width={1180} height={720}>
+              <ExpensesCards />
+            </DCArtboard>
+            <DCArtboard id="list-c" label="C · Grouped by day, chip filters" width={1180} height={720}>
+              <ExpensesGrouped />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="detail" title="Expense detail / edit"
+                     subtitle="State-machine UI explored three ways. Pick where on the spectrum from peek to page.">
+            <DCArtboard id="detail-a" label="A · Mobile bottom sheet" width={340} height={680}>
+              <DetailBottomSheet />
+            </DCArtboard>
+            <DCArtboard id="detail-b" label="B · Desktop slide-over panel" width={1180} height={720}>
+              <DetailSlideOver />
+            </DCArtboard>
+            <DCArtboard id="detail-c" label="C · Dedicated page + timeline" width={1180} height={720}>
+              <DetailPage />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="settings" title="Settings (Milestone D.2)"
+                     subtitle="Three tabs share one layout — variants differ in how editing happens">
+            <DCArtboard id="set-a" label="A · Tabbed page · table list" width={1180} height={720}>
+              <SettingsTable />
+            </DCArtboard>
+            <DCArtboard id="set-b" label="B · Tabbed page · swatch grid" width={1180} height={720}>
+              <SettingsCards />
+            </DCArtboard>
+            <DCArtboard id="set-c" label="C · Tabbed page · inline edit" width={1180} height={720}>
+              <SettingsInline />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="receipt" title="Receipt export"
+                     subtitle="Same HTML powers PDF, print, and CSV. UI differs in how you arrive at it.">
+            <DCArtboard id="rec-a" label="A · Builder + live preview" width={1180} height={720}>
+              <ReceiptBuilder />
+            </DCArtboard>
+            <DCArtboard id="rec-b" label="B · Step-by-step wizard" width={1180} height={720}>
+              <ReceiptStepper />
+            </DCArtboard>
+            <DCArtboard id="rec-c" label="C · Document-first w/ margin controls" width={1180} height={720}>
+              <ReceiptDocFirst />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="dashboard" title="Dashboard"
+                     subtitle="Total + categories + recent peek + net-owed. Three reading orders.">
+            <DCArtboard id="dash-a" label="A · Hero (spend big, then context)" width={1180} height={720}>
+              <DashboardHero />
+            </DCArtboard>
+            <DCArtboard id="dash-b" label="B · 4-quadrant grid" width={1180} height={720}>
+              <DashboardGrid />
+            </DCArtboard>
+            <DCArtboard id="dash-c" label="C · Scroll feed (narrative)" width={1180} height={720}>
+              <DashboardFeed />
+            </DCArtboard>
+          </DCSection>
+
+        </DesignCanvas>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

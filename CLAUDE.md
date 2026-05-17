@@ -107,7 +107,8 @@ Even if a context isn't implemented yet, its folder exists as a placeholder once
 │   │   └── routes/               # react-router-dom v7 file organization
 │   └── package.json
 ├── docs/
-│   └── domain/                   # One markdown file per bounded context
+│   ├── domain/                   # One markdown file per bounded context
+│   └── design/                   # Visual reference (Claude Design vN.html), wireframes, design-todos.md
 ├── tsconfig.base.json            # Shared compilerOptions (extended by both workspaces)
 ├── CLAUDE.md
 ├── PLAN.md
@@ -354,6 +355,16 @@ A task is done when:
 5. No Prisma types appear outside `infrastructure/persistence/prisma/`.
 6. Money values are not represented as `number` anywhere.
 7. The Expense (or relevant aggregate) is not bypassed for a direct DB write.
+
+---
+
+## Design reference
+
+- `docs/design/Claude Design v2.0.html` is the canonical visual reference for Milestones H + I. Open it, screenshot it, lift Tailwind classes and exact pixel values from it rather than reinventing them.
+- `docs/design/design-todos.md` lists known design gaps grouped by milestone. **Read it before implementing a screen.** When build reveals a new gap or ambiguity, append it under `## Questions for design` and stop — don't guess.
+- `docs/design/Claude Design Wireframe/index.html` + `docs/design/Claude Design Wireframe/wireframes/` are the exploration that led to Claude Design v2.0. Consult only if Claude Design v2.0 is ambiguous on a specific detail.
+- The chip colors in the "Reference data — initial seeds" tables above are the source of truth. When wiring Tailwind theme tokens / a `tokens.ts`, pull from those tables — never paste hex codes from memory or from Claude Design v2.0.html.
+- When a screen ships, capture a screenshot of the running app and visually diff it against the matching region of Claude Design v2.0 before closing the task.
 
 ---
 

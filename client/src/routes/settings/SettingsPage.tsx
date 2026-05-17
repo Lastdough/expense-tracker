@@ -3,9 +3,11 @@ import {useSearchParams} from 'react-router-dom';
 import {CategoriesTab} from './CategoriesTab';
 import {MethodsTab} from './MethodsTab';
 import {StatusesTab} from './StatusesTab';
+import {BudgetTab} from './BudgetTab';
 import {Toast, type ToastState} from './components/Toast';
 
-type TabId = 'categories' | 'methods' | 'statuses';
+type TabId = 'categories' | 'methods' | 'statuses' | 'budget';
+type CountedTabId = Exclude<TabId, 'budget'>;
 
 interface TabDef {
   readonly id: TabId;
@@ -16,10 +18,11 @@ const TABS: ReadonlyArray<TabDef> = [
   {id: 'categories', label: 'Categories'},
   {id: 'methods', label: 'Methods'},
   {id: 'statuses', label: 'Statuses'},
+  {id: 'budget', label: 'Budget'},
 ];
 
 function isTabId(v: string | null): v is TabId {
-  return v === 'categories' || v === 'methods' || v === 'statuses';
+  return v === 'categories' || v === 'methods' || v === 'statuses' || v === 'budget';
 }
 
 export default function SettingsPage() {
@@ -32,7 +35,7 @@ export default function SettingsPage() {
   };
 
   const [toast, setToast] = useState<ToastState | null>(null);
-  const [counts, setCounts] = useState<Record<TabId, number>>({
+  const [counts, setCounts] = useState<Record<CountedTabId, number>>({
     categories: 0,
     methods: 0,
     statuses: 0,
@@ -47,7 +50,7 @@ export default function SettingsPage() {
     [],
   );
   const setCount = useCallback(
-    (which: TabId) => (n: number) => setCounts((prev) => (prev[which] === n ? prev : {...prev, [which]: n})),
+    (which: CountedTabId) => (n: number) => setCounts((prev) => (prev[which] === n ? prev : {...prev, [which]: n})),
     [],
   );
 
@@ -71,6 +74,7 @@ export default function SettingsPage() {
         <nav className="mt-5 flex gap-1 overflow-x-auto overflow-y-hidden" aria-label="Settings sections">
           {TABS.map((t) => {
             const active = tab === t.id;
+            const showCount = t.id !== 'budget';
             return (
               <button
                 key={t.id}
@@ -85,14 +89,16 @@ export default function SettingsPage() {
                 ].join(' ')}
               >
                 {t.label}
-                <span
-                  className={[
-                    'text-[10.5px] font-mono px-1.5 py-px rounded',
-                    active ? 'bg-ink text-paper' : 'bg-line/70 text-ink-2',
-                  ].join(' ')}
-                >
-                  {counts[t.id]}
-                </span>
+                {showCount && (
+                  <span
+                    className={[
+                      'text-[10.5px] font-mono px-1.5 py-px rounded',
+                      active ? 'bg-ink text-paper' : 'bg-line/70 text-ink-2',
+                    ].join(' ')}
+                  >
+                    {counts[t.id as CountedTabId]}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -108,6 +114,9 @@ export default function SettingsPage() {
         </div>
         <div className={tab === 'statuses' ? 'block' : 'hidden'}>
           <StatusesTab onSuccess={onSuccess} onError={onError} onCountChange={setCount('statuses')}/>
+        </div>
+        <div className={tab === 'budget' ? 'block' : 'hidden'}>
+          <BudgetTab onSuccess={onSuccess} onError={onError}/>
         </div>
       </div>
 

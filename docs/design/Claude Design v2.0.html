@@ -1,0 +1,1750 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Expense Tracker · Pass 1 (shell + Quick-Add)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --color-ink: #0a0908;
+      --color-ink-2: #44403c;
+      --color-ink-3: #78716c;
+      --color-paper: #fafaf7;
+      --color-paper-2: #f2efe8;
+      --color-line: #e3ddd0;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); }
+    [data-screen-label]:focus-visible{outline:none}
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+
+const { useState, useEffect, useRef, createContext, useContext } = React;
+
+// Tweakable defaults
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "selStyle": "halo"
+}/*EDITMODE-END*/;
+
+// Selected-chip rendering style options:
+//   'ring'    : current ring outline (clunky baseline)
+//   'bigger'  : scale + bold the selected chip
+//   'darker'  : darken bg, bold the selected chip
+//   'both'    : bigger AND darker
+//   'invert'  : bigger + bold + swap fg/bg, original bg becomes a border ON the chip
+//   'halo'    : bigger + bold + fg-color border ON the chip (no color swap)
+const TweaksCtx = createContext({ selStyle: 'invert' });
+
+function darkenHex(hex, amt = 0.18) {
+  const h = (hex || '#000000').replace('#','');
+  if (h.length !== 6) return hex;
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  const f = (v) => Math.max(0, Math.round(v * (1 - amt)));
+  return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+function lightenHex(hex, amt = 0.35) {
+  const h = (hex || '#000000').replace('#','');
+  if (h.length !== 6) return hex;
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  const f = (v) => Math.min(255, Math.round(v + (255 - v) * amt));
+  return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+// Perceived luminance (0–1)
+function lum(hex) {
+  const h = (hex || '#000000').replace('#','');
+  if (h.length !== 6) return 0.5;
+  const r = parseInt(h.slice(0,2),16)/255, g = parseInt(h.slice(2,4),16)/255, b = parseInt(h.slice(4,6),16)/255;
+  return 0.299*r + 0.587*g + 0.114*b;
+}
+// Smart halo: contrasts with BOTH the chip and the paper background.
+// - Light chip (fg darker than bg): use fg as halo — a darker outline.
+// - Dark chip  (fg lighter than bg): use a lightened bg as halo — mid-tone that
+//   still reads against the paper. Pure fg (white) would melt into paper.
+function haloColor(token) {
+  return lum(token.fg) > lum(token.bg) ? lightenHex(token.bg, 0.42) : token.fg;
+}
+
+// ─── Reference data (exact colors from CLAUDE.md) ─────────────────────────
+const CATEGORIES = [
+{ id: 'c1', name: 'Food', bg: '#ffcfc9', fg: '#b10202' },
+{ id: 'c2', name: 'Transportations', bg: '#0a53a8', fg: '#ffffff' },
+{ id: 'c3', name: 'Shopping', bg: '#e6cff2', fg: '#5a3286' },
+{ id: 'c4', name: 'Supplies', bg: '#e6cff2', fg: '#5a3286' },
+{ id: 'c5', name: 'Groceries', bg: '#e6cff2', fg: '#5a3286' },
+{ id: 'c6', name: 'Bill', bg: '#ffe5a0', fg: '#473821' },
+{ id: 'c7', name: 'Services', bg: '#ffe5a0', fg: '#473821' },
+{ id: 'c8', name: 'Entertainment', bg: '#ffe5a0', fg: '#473821' },
+{ id: 'c9', name: 'Healthcare', bg: '#d4edbc', fg: '#11734b' },
+{ id: 'c10', name: 'Misc', bg: '#e8eaed', fg: '#000000' }];
+
+const METHODS = [
+{ id: 'm1', name: 'Mandiri', bg: '#143361', fg: '#a8c0e0' },
+{ id: 'm2', name: 'Jago', bg: '#fcaf23', fg: '#6b4400' },
+{ id: 'm3', name: 'BCA', bg: '#046ebc', fg: '#c0d8f5' },
+{ id: 'm4', name: 'Gopay', bg: '#00accb', fg: '#e0f7ff' },
+{ id: 'm5', name: 'ShopeePay', bg: '#ef5334', fg: '#ffffff' },
+{ id: 'm6', name: 'Cash', bg: '#e8eaed', fg: '#000000' }];
+
+const STATUSES = [
+{ id: 's1', name: 'Non-Reimbursable', short: 'Non-reimb', bg: '#e8eaed', fg: '#000000' },
+{ id: 's2', name: 'Unpaid Reimbursable', short: 'Unpaid', bg: '#ffe5a0', fg: '#473821' },
+{ id: 's3', name: 'Paid Reimbursable', short: 'Paid', bg: '#d4edbc', fg: '#11734b' },
+{ id: 's4', name: 'Early Reimbursement', short: 'Early', bg: '#bce3f2', fg: '#0b4c6b' },
+{ id: 's5', name: 'Pending Reimbursement', short: 'Pending', bg: '#ffc8aa', fg: '#753800' }];
+
+const fmtIDR = (n) => 'Rp ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+// ─── Chip ────────────────────────────────────────────────────────────────
+function Chip({ token, label, size = 'sm', className = '' }) {
+  const sz = size === 'lg' ? 'text-sm px-3 py-1' : size === 'md' ? 'text-[12.5px] px-2.5 py-[3px]' : 'text-[11.5px] px-2 py-[2px]';
+  return (
+    <span className={'inline-flex items-center rounded-full font-medium leading-tight whitespace-nowrap ' + sz + ' ' + className}
+    style={{ background: token.bg, color: token.fg, padding: "3px 10px" }}>
+      {label ?? token.name}
+    </span>);
+
+}
+
+// ─── Formula eval (display-only, mirrors the security rules) ─────────────
+function evalFormula(raw) {
+  if (!raw) return { ok: false, value: 0 };
+  const expr = raw.startsWith('=') ? raw.slice(1) : raw;
+  if (!/^[\d+\-*/().\s]*$/.test(expr)) return { ok: false, value: 0, err: 'invalid characters' };
+  try {
+    // eslint-disable-next-line no-new-func
+    // Real app uses sandboxed parser — this preview just renders the resolved number.
+    // Whitelist already enforced above; we'll do a tiny shunting-yard.
+    return { ok: true, value: shuntingYard(expr) };
+  } catch (e) {return { ok: false, value: 0, err: e.message };}
+}
+function shuntingYard(s) {
+  const out = [],op = [],prec = { '+': 1, '-': 1, '*': 2, '/': 2 };
+  const tokens = s.match(/(\d+\.?\d*|[+\-*/()])/g) || [];
+  for (const t of tokens) {
+    if (/^\d/.test(t)) out.push(parseFloat(t));else
+    if (t === '(') op.push(t);else
+    if (t === ')') {while (op.length && op[op.length - 1] !== '(') out.push(op.pop());op.pop();} else
+    {while (op.length && op[op.length - 1] !== '(' && prec[op[op.length - 1]] >= prec[t]) out.push(op.pop());op.push(t);}
+  }
+  while (op.length) out.push(op.pop());
+  const st = [];
+  for (const t of out) {
+    if (typeof t === 'number') st.push(t);else
+    {const b = st.pop(),a = st.pop();st.push(t === '+' ? a + b : t === '-' ? a - b : t === '*' ? a * b : a / b);}
+  }
+  return st[0] ?? 0;
+}
+
+// ─── Icons (inline SVGs — lucide style) ──────────────────────────────────
+const I = {
+  plus: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>,
+  list: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>,
+  chart: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18M7 16l4-4 4 4 6-8" /></svg>,
+  receipt: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 2V2H4z" /><path d="M8 7h8M8 11h8M8 15h5" /></svg>,
+  cog: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>,
+  chev: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>,
+  back: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>,
+  del: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 4 8.4 8.4 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8z" /></svg>,
+  cal: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>,
+  search: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>,
+  bell: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+};
+
+// ─── Layout: device toggle ───────────────────────────────────────────────
+function App() {
+  const [device, setDevice] = useState('mobile'); // 'mobile' | 'desktop'
+  const [route, setRoute] = useState('quick-add'); // mobile + desktop both use these route ids
+  return (
+    <div className="min-h-screen w-full p-6 bg-[#eeece5]">
+      {/* Toolbar */}
+      <div className="max-w-[1320px] mx-auto mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-[20px] font-bold tracking-tight">Expense Tracker · Pass 1</h1>
+          <p className="text-[12.5px] text-stone-600">Mid-fi prototype · {route} · {device}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-full border border-stone-300 bg-white p-[3px]">
+            {['mobile', 'desktop'].map((d) =>
+            <button key={d} onClick={() => setDevice(d)}
+            className={'px-3 py-1 text-[12px] rounded-full transition ' + (device === d ? 'bg-ink text-paper' : 'text-stone-600 hover:text-ink')}
+            style={device === d ? { background: '#0a0908', color: '#fafaf7' } : {}}>
+                {d}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Frame */}
+      <div className="max-w-[1320px] mx-auto flex justify-center">
+        {device === 'mobile' ?
+        <MobileFrame route={route} setRoute={setRoute} /> :
+        <DesktopFrame route={route} setRoute={setRoute} />}
+      </div>
+    </div>);
+
+}
+
+// ─── Mobile shell: bottom tabs ───────────────────────────────────────────
+const MOBILE_TABS = [
+{ id: 'quick-add', icon: I.plus, label: 'Add' },
+{ id: 'expenses', icon: I.list, label: 'Expenses' },
+{ id: 'dashboard', icon: I.chart, label: 'Insights' },
+{ id: 'receipt', icon: I.receipt, label: 'Receipt' },
+{ id: 'settings', icon: I.cog, label: 'Settings' }];
+
+
+function MobileFrame({ route, setRoute }) {
+  return (
+    <div className="relative rounded-[42px] p-3 shadow-[0_18px_60px_-12px_rgba(0,0,0,.25)]" style={{ background: '#0a0908' }}>
+      <div className="w-[390px] h-[800px] rounded-[34px] overflow-hidden bg-paper flex flex-col" style={{ background: '#fafaf7' }}>
+        {/* Status bar */}
+        <div className="flex items-center justify-between px-7 pt-3 pb-2 text-[12px] font-semibold text-stone-900">
+          <span>9:41</span>
+          <span className="text-[10px] tracking-wide">●●●● 5G ▮▮▮</span>
+        </div>
+        {/* Notch */}
+        <div className="absolute top-[18px] left-1/2 -translate-x-1/2 w-[110px] h-[26px] rounded-full" style={{ background: '#0a0908' }} />
+
+        {/* Content */}
+        <div className="flex-1 overflow-hidden relative">
+          {route === 'quick-add' && <QuickAddMobile />}
+          {route === 'expenses'  && <ExpensesListMobile />}
+          {route === 'dashboard' && <DashboardMobile setRoute={setRoute} />}
+          {route === 'receipt'   && <ReceiptMobile />}
+          {route === 'settings'  && <SettingsMobile />}
+        </div>
+
+        {/* Bottom tabs */}
+        <div className="border-t border-stone-200 bg-white grid grid-cols-5">
+          {MOBILE_TABS.map((t) => {
+            const active = route === t.id;
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={() => setRoute(t.id)}
+              className="py-2 pb-3 flex flex-col items-center gap-[3px] transition">
+                <span className={'w-9 h-7 flex items-center justify-center rounded-full ' + (active ? 'bg-stone-900 text-white' : 'text-stone-500')}>
+                  <Icon width={t.id === 'quick-add' ? 17 : 16} height={t.id === 'quick-add' ? 17 : 16} />
+                </span>
+                <span className={'text-[10px] tracking-wide ' + (active ? 'text-stone-900 font-semibold' : 'text-stone-500 font-medium')}>{t.label}</span>
+              </button>);
+
+          })}
+        </div>
+
+        {/* Home indicator */}
+        <div className="pb-2 flex justify-center"><div className="w-32 h-[5px] rounded-full bg-stone-900/80" /></div>
+      </div>
+    </div>);
+
+}
+
+// ─── Desktop shell: side rail ────────────────────────────────────────────
+const DESKTOP_NAV = [
+{ id: 'quick-add', icon: I.plus, label: 'Quick Add', kbd: 'A' },
+{ id: 'expenses', icon: I.list, label: 'Expenses', kbd: 'E' },
+{ id: 'dashboard', icon: I.chart, label: 'Dashboard', kbd: 'D' },
+{ id: 'receipt', icon: I.receipt, label: 'Receipt', kbd: 'R' },
+{ id: 'settings', icon: I.cog, label: 'Settings', kbd: ',' }];
+
+
+function DesktopFrame({ route, setRoute }) {
+  return (
+    <div className="w-[1280px] h-[820px] rounded-2xl border border-stone-300 overflow-hidden bg-white shadow-[0_18px_60px_-16px_rgba(0,0,0,.25)] flex">
+      {/* Side rail */}
+      <aside className="w-[232px] border-r border-stone-200 flex flex-col" style={{ background: '#f2efe8' }}>
+        <div className="px-5 pt-6 pb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md flex items-center justify-center text-white font-bold text-[13px]" style={{ background: '#0a0908' }}>L</div>
+            <div>
+              <div className="text-[14px] font-bold tracking-tight">Ledger</div>
+              <div className="text-[10.5px] text-stone-500 -mt-0.5">personal · IDR</div>
+            </div>
+          </div>
+        </div>
+        <nav className="px-3 flex flex-col gap-[2px]">
+          {DESKTOP_NAV.map((n) => {
+            const active = route === n.id;
+            const Icon = n.icon;
+            return (
+              <button key={n.id} onClick={() => setRoute(n.id)}
+              className={'group flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13px] transition ' + (active ? 'bg-stone-900 text-white font-semibold' : 'text-stone-700 hover:bg-stone-200/60 font-medium')}>
+                <Icon width={15} height={15} />
+                <span className="flex-1 text-left">{n.label}</span>
+                <span className={'text-[10px] font-mono px-1.5 py-px rounded border ' + (active ? 'border-white/30 text-white/70' : 'border-stone-300 text-stone-400 group-hover:text-stone-500')}>⌘{n.kbd}</span>
+              </button>);
+
+          })}
+        </nav>
+
+        <div className="mt-auto px-4 pb-5">
+          <div className="rounded-xl border border-stone-300 bg-white p-3.5">
+            <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">Net owed to you</div>
+            <div className="mt-1 font-mono text-[22px] font-bold tracking-tight">{fmtIDR(487500)}</div>
+            <div className="text-[10.5px] text-stone-500 mt-0.5">Early {fmtIDR(680000)} − Unpaid {fmtIDR(192500)}</div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {route === 'quick-add' && <QuickAddDesktop />}
+        {route === 'settings'  && <SettingsDesktop />}
+        {route === 'expenses'  && <ExpensesListDesktop />}
+        {route === 'receipt'   && <ReceiptDesktop />}
+        {route === 'dashboard' && <DashboardDesktop setRoute={setRoute} />}
+        {!['quick-add','settings','expenses','receipt','dashboard'].includes(route) && <PlaceholderScreen route={route} desktop />}
+      </main>
+    </div>);
+
+}
+
+function PlaceholderScreen({ route, desktop }) {
+  const titles = { expenses: 'Expenses', dashboard: 'Dashboard', receipt: 'Receipt export', settings: 'Settings' };
+  return (
+    <div className={'h-full flex flex-col items-center justify-center text-center ' + (desktop ? 'p-12' : 'p-6')}>
+      <div className="text-[11px] uppercase tracking-wider text-stone-400 font-semibold">Pass 1 · upcoming</div>
+      <div className="mt-1 text-[26px] font-bold tracking-tight">{titles[route]}</div>
+      <div className="mt-2 text-[13px] text-stone-500 max-w-sm leading-relaxed">
+        Designed in the wireframes — being elevated to this fidelity in the next turn.
+        Switch device or screen above to navigate.
+      </div>
+    </div>);
+
+}
+
+// ─── Quick-Add (mobile) — dense grid + tap-to-keypad on amount ────────────
+const RECENT_CATS = ['c2', 'c1', 'c5', 'c6', 'c9']; // last-used (top of grid)
+const RECENT_METHODS = ['m4', 'm3', 'm6', 'm1', 'm2', 'm5'];
+
+function QuickAddMobile() {
+  const [raw, setRaw] = useState('');
+  const [keypad, setKeypad] = useState(false);
+  const [catId, setCatId] = useState('c2');
+  const [methId, setMethId] = useState('m4');
+  const [statusId, setStatusId] = useState('s1');
+  const [desc, setDesc] = useState('');
+  const evalRes = evalFormula(raw);
+  const cat = CATEGORIES.find((c) => c.id === catId);
+  const meth = METHODS.find((m) => m.id === methId);
+  const status = STATUSES.find((s) => s.id === statusId);
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <header className="px-5 pt-3 pb-3 border-b border-stone-200 bg-paper" style={{ background: '#fafaf7' }}>
+        <div className="flex items-baseline justify-between">
+          <div>
+            <div className="text-[11px] text-stone-500 font-medium">Mon · 11 May 2026</div>
+            <h1 className="text-[22px] font-bold tracking-tight">New expense</h1>
+          </div>
+          <button className="text-[12px] text-stone-500 font-medium">Cancel</button>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-5 pb-5 pt-4 flex flex-col gap-4">
+        {/* Amount card */}
+        <button onClick={() => setKeypad(true)} className="text-left rounded-2xl border-2 border-stone-900 bg-white px-4 py-3 active:scale-[.99] transition">
+          <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">Amount</div>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className="text-[14px] font-mono text-stone-500">Rp</span>
+            <span className="text-[34px] font-mono font-bold tracking-tight leading-none">
+              {evalRes.ok && raw ? fmtIDR(evalRes.value).replace('Rp ', '') : '0'}
+            </span>
+          </div>
+          {raw && raw.startsWith('=') &&
+          <div className="text-[11px] font-mono text-stone-500 mt-1">{raw}</div>
+          }
+        </button>
+
+        {/* Category */}
+        <Section label="Category">
+          <ChipPicker tokens={CATEGORIES} order={RECENT_CATS} value={catId} onChange={setCatId} />
+        </Section>
+
+        {/* Method */}
+        <Section label="Method">
+          <ChipPicker tokens={METHODS} order={RECENT_METHODS} value={methId} onChange={setMethId} />
+        </Section>
+
+        {/* Description */}
+        <Section label="Description">
+          <input value={desc} onChange={(e) => setDesc(e.target.value)}
+          placeholder="e.g. Grab to office (team)"
+          className="w-full px-3.5 py-3 rounded-xl border border-stone-300 bg-white text-[14px] outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10 transition" />
+        </Section>
+
+        {/* Status + Date row */}
+        <div className="grid grid-cols-[1.4fr_1fr] gap-3">
+          <Section label="Reimbursement">
+            <SelectStub><Chip token={status} size="md" /></SelectStub>
+          </Section>
+          <Section label="Date">
+            <SelectStub><span className="text-[13px] font-medium">Today</span></SelectStub>
+          </Section>
+        </div>
+
+        <div className="text-[11px] text-stone-400 mt-1">Press <kbd className="px-1.5 py-0.5 rounded border border-stone-300 text-[10px] font-mono">⏎</kbd> from description to save & refocus amount.</div>
+      </div>
+
+      {/* Save bar */}
+      <div className="border-t border-stone-200 bg-white px-5 py-3 flex gap-2">
+        <button className="flex-[1] py-3 rounded-xl border border-stone-300 text-[14px] font-semibold text-stone-700">Cancel</button>
+        <button className="flex-[2] py-3 rounded-xl text-[14px] font-semibold text-white" style={{ background: '#0a0908' }}>Save expense</button>
+      </div>
+
+      {/* Keypad sheet */}
+      <KeypadSheet open={keypad} onClose={() => setKeypad(false)} value={raw} onChange={setRaw} evalRes={evalRes} />
+    </div>);
+
+}
+
+function Section({ label, children }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-1.5">{label}</div>
+      {children}
+    </div>);
+
+}
+
+function SelectStub({ children }) {
+  return (
+    <button className="w-full px-3 py-2.5 rounded-xl border border-stone-300 bg-white flex items-center justify-between text-left">
+      <span className="min-w-0 truncate">{children}</span>
+      <I.chev width={14} height={14} className="text-stone-400 flex-shrink-0" />
+    </button>);
+
+}
+
+function ChipPicker({ tokens, order, value, onChange }) {
+  const { selStyle } = useContext(TweaksCtx);
+  const ordered = [...order.map((id) => tokens.find((t) => t.id === id)).filter(Boolean),
+  ...tokens.filter((t) => !order.includes(t.id))];
+  return (
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {ordered.map((t) => {
+        const sel = t.id === value;
+        const useRing   = sel && selStyle === 'ring';
+        const useBigger = sel && (selStyle === 'bigger' || selStyle === 'both' || selStyle === 'invert' || selStyle === 'halo');
+        const useDarken = sel && (selStyle === 'darker' || selStyle === 'both');
+        const useInvert = sel && selStyle === 'invert';
+        const useHalo   = sel && selStyle === 'halo';
+        let bg = t.bg, fg = t.fg, borderColor = 'transparent';
+        if (useInvert) { bg = t.fg; fg = t.bg; borderColor = t.bg; }
+        else if (useHalo) { borderColor = haloColor(t); }
+        else if (useDarken) { bg = darkenHex(t.bg, 0.22); }
+        return (
+          <button key={t.id} onClick={() => onChange(t.id)}
+            className={'rounded-full transition-transform duration-150 ' + (useRing ? 'ring-2 ring-stone-900 ring-offset-1' : '')}
+            style={{ padding: 0, transform: useBigger ? 'scale(1.10)' : 'scale(1)', margin: useBigger ? '0 4px' : '0', ['--tw-ring-offset-color']: '#fafaf7' }}>
+            <span className={'inline-flex items-center rounded-full leading-tight whitespace-nowrap text-[12.5px] ' + ((useInvert || useHalo) ? 'px-[9px] py-[2px] border-2' : 'px-2.5 py-[3px]') + ' ' + (sel ? 'font-semibold' : 'font-medium')}
+                  style={{ background: bg, color: fg, borderColor: (useInvert || useHalo) ? borderColor : undefined }}>
+              {t.name}
+            </span>
+          </button>);
+
+      })}
+      <button className="rounded-full px-3 py-[5px] text-[12px] text-stone-500 border border-dashed border-stone-300 hover:border-stone-900 hover:text-stone-900 transition">+ new</button>
+    </div>);
+
+}
+
+// ─── Keypad sheet ────────────────────────────────────────────────────────
+const KEYS = [
+['7', '8', '9', '÷'],
+['4', '5', '6', '×'],
+['1', '2', '3', '−'],
+['.', '0', '⌫', '+']];
+
+const KEY_MAP = { '÷': '/', '×': '*', '−': '-' };
+
+function KeypadSheet({ open, onClose, value, onChange, evalRes }) {
+  // Track formula mode (= prefix) and bare-number mode
+  const press = (k) => {
+    if (k === '⌫') return onChange(value.slice(0, -1));
+    const ch = KEY_MAP[k] ?? k;
+    // First operator/decimal: prepend = automatically (formula mode)
+    let next = value;
+    if (!next && /[+\-*/.]/.test(ch)) next = '=';
+    if (next === '' && /\d/.test(ch)) {
+      next = ch;
+    } else if (next.startsWith('=')) {
+      next = next + ch;
+    } else if (/[+\-*/]/.test(ch)) {
+      next = '=' + value + ch;
+    } else {
+      next = next + ch;
+    }
+    onChange(next);
+  };
+  const display = value && evalRes.ok ? fmtIDR(evalRes.value).replace('Rp ', '') : value || '0';
+
+  if (!open) return null;
+  return (
+    <div className="absolute inset-0 z-30 flex flex-col justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-stone-900/30" />
+      <div className="relative bg-white border-t border-stone-200 rounded-t-3xl shadow-2xl pb-3 animate-[slideUp_.2s_ease]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-center pt-2 pb-1"><div className="w-10 h-[5px] rounded-full bg-stone-300" /></div>
+        {/* Display */}
+        <div className="px-5 pt-2 pb-3 border-b border-stone-200">
+          <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">Amount</div>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className="text-[15px] font-mono text-stone-500">Rp</span>
+            <span className="text-[40px] font-mono font-bold tracking-tight leading-none">{display}</span>
+          </div>
+          {value.startsWith('=') && <div className="text-[12px] font-mono text-stone-500 mt-1">{value}{evalRes.err && <span className="text-rose-600 ml-2">· {evalRes.err}</span>}</div>}
+        </div>
+        {/* Keys */}
+        <div className="grid grid-cols-4 gap-2 px-3 pt-3">
+          {KEYS.flat().map((k) =>
+          <button key={k} onClick={() => press(k)}
+          className={'h-14 rounded-2xl text-[20px] font-semibold font-mono border transition active:scale-95 ' + (
+          /[÷×−+⌫]/.test(k) ? 'bg-stone-100 border-stone-200 text-stone-700' : 'bg-white border-stone-200 text-stone-900 hover:bg-stone-50')}>
+              {k}
+            </button>
+          )}
+        </div>
+        <div className="px-3 pt-3 pb-1 flex gap-2">
+          <button onClick={() => onChange('')} className="flex-1 h-12 rounded-2xl text-[13px] font-semibold text-stone-700 border border-stone-200 bg-stone-50">Clear</button>
+          <button onClick={onClose} className="flex-[2] h-12 rounded-2xl text-[14px] font-semibold text-white" style={{ background: '#0a0908' }}>Done</button>
+        </div>
+      </div>
+      <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+    </div>);
+
+}
+
+// ─── Quick-Add (desktop) — same model, two-column ────────────────────────
+function QuickAddDesktop() {
+  const [raw, setRaw] = useState('=26000*3');
+  const [keypad, setKeypad] = useState(false);
+  const [catId, setCatId] = useState('c2');
+  const [methId, setMethId] = useState('m4');
+  const [statusId, setStatusId] = useState('s2');
+  const [desc, setDesc] = useState('Grab to office (team)');
+  const evalRes = evalFormula(raw);
+  const status = STATUSES.find((s) => s.id === statusId);
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <header className="px-8 py-5 border-b border-stone-200 flex items-baseline justify-between flex-shrink-0">
+        <div>
+          <div className="text-[11.5px] uppercase tracking-wider text-stone-500 font-semibold">Quick Add</div>
+          <h1 className="text-[28px] font-bold tracking-tight mt-0.5">Record an expense</h1>
+        </div>
+        <div className="text-[12px] text-stone-500">
+          Today is <span className="font-semibold text-stone-900">Mon, 11 May 2026</span>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="max-w-[860px] grid grid-cols-[1.4fr_1fr] gap-6">
+          {/* Left column: amount + description + status + date */}
+          <div className="flex flex-col gap-4">
+            <div className="relative">
+              <Section label="Amount">
+                <button onClick={() => setKeypad((v) => !v)}
+                className="w-full rounded-2xl border-2 border-stone-900 bg-white px-5 py-4 text-left transition hover:bg-stone-50">
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-[15px] font-mono text-stone-500">Rp</span>
+                    <span className="text-[42px] font-mono font-bold tracking-tight leading-none">
+                      {evalRes.ok && raw ? fmtIDR(evalRes.value).replace('Rp ', '') : '0'}
+                    </span>
+                  </div>
+                  {raw.startsWith('=') &&
+                  <div className="text-[12px] font-mono text-stone-500 mt-1.5">{raw}</div>
+                  }
+                </button>
+              </Section>
+              {keypad &&
+              <div className="absolute left-0 top-full mt-2 w-[320px] rounded-2xl bg-white border border-stone-200 shadow-2xl z-20 p-3">
+                  <div className="grid grid-cols-4 gap-2">
+                    {KEYS.flat().map((k) =>
+                  <button key={k} onClick={() => {
+                    if (k === '⌫') return setRaw((r) => r.slice(0, -1));
+                    const ch = KEY_MAP[k] ?? k;
+                    setRaw((r) => {
+                      if (!r && /[+\-*/.]/.test(ch)) return '=' + ch;
+                      if (r === '' && /\d/.test(ch)) return ch;
+                      if (r.startsWith('=')) return r + ch;
+                      if (/[+\-*/]/.test(ch)) return '=' + r + ch;
+                      return r + ch;
+                    });
+                  }}
+                  className={'h-12 rounded-xl text-[16px] font-semibold font-mono border transition active:scale-95 ' + (
+                  /[÷×−+⌫]/.test(k) ? 'bg-stone-100 border-stone-200 text-stone-700' : 'bg-white border-stone-200 text-stone-900 hover:bg-stone-50')}>
+                        {k}
+                      </button>
+                  )}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => setRaw('')} className="flex-1 h-10 rounded-xl text-[12px] font-semibold text-stone-600 border border-stone-200 bg-stone-50">Clear</button>
+                    <button onClick={() => setKeypad(false)} className="flex-[2] h-10 rounded-xl text-[13px] font-semibold text-white" style={{ background: '#0a0908' }}>Done</button>
+                  </div>
+                </div>
+              }
+            </div>
+            <Section label="Description">
+              <input value={desc} onChange={(e) => setDesc(e.target.value)}
+              placeholder="What was it for?"
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 bg-white text-[14px] outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10 transition" />
+            </Section>
+            <div className="grid grid-cols-2 gap-3">
+              <Section label="Reimbursement">
+                <SelectStub><Chip token={status} size="md" /></SelectStub>
+              </Section>
+              <Section label="Date">
+                <button className="w-full px-3 py-2.5 rounded-xl border border-stone-300 bg-white flex items-center justify-between text-left">
+                  <span className="flex items-center gap-2 text-[13px] font-medium"><I.cal width={14} height={14} className="text-stone-500" />Today · 11 May</span>
+                  <I.chev width={14} height={14} className="text-stone-400" />
+                </button>
+              </Section>
+            </div>
+          </div>
+
+          {/* Right column: chips */}
+          <div className="flex flex-col gap-4">
+            <Section label="Category">
+              <ChipPicker tokens={CATEGORIES} order={RECENT_CATS} value={catId} onChange={setCatId} />
+            </Section>
+            <Section label="Method">
+              <ChipPicker tokens={METHODS} order={RECENT_METHODS} value={methId} onChange={setMethId} />
+            </Section>
+            <div className="text-[11.5px] text-stone-500 leading-relaxed border-l-2 border-stone-300 pl-3 py-1 mt-1">
+              Per-field <span className="font-semibold text-stone-700">last-used memory</span> orders these chips. Selection ring on the active one; "+ new" creates inline (Milestone I).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-stone-200 bg-white px-8 py-3.5 flex items-center justify-between flex-shrink-0">
+        <div className="text-[11.5px] text-stone-500">
+          <kbd className="px-1.5 py-0.5 rounded border border-stone-300 font-mono text-[10px] mr-1">⏎</kbd>
+          save & start another
+          <span className="mx-3 text-stone-300">·</span>
+          <kbd className="px-1.5 py-0.5 rounded border border-stone-300 font-mono text-[10px] mr-1">⎋</kbd>
+          cancel
+        </div>
+        <div className="flex gap-2">
+          <button className="px-4 py-2 rounded-lg border border-stone-300 text-[13px] font-semibold text-stone-700">Cancel</button>
+          <button className="px-5 py-2 rounded-lg text-[13px] font-semibold text-white" style={{ background: '#0a0908' }}>Save expense</button>
+        </div>
+      </div>
+    </div>);
+
+}
+
+// ─── Settings (desktop) ──────────────────────────────────────────────────
+const SETTINGS_TABS = [
+  { id:'categories', label:'Categories', count: CATEGORIES.length },
+  { id:'methods',    label:'Methods',    count: METHODS.length },
+  { id:'statuses',   label:'Statuses',   count: STATUSES.length },
+];
+
+function SettingsDesktop() {
+  const [tab, setTab] = useState('categories');
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <header className="px-8 pt-5 pb-0 border-b border-stone-200 flex-shrink-0">
+        <div className="flex items-baseline justify-between">
+          <div>
+            <div className="text-[11.5px] uppercase tracking-wider text-stone-500 font-semibold">Settings</div>
+            <h1 className="text-[28px] font-bold tracking-tight mt-0.5">Reference data</h1>
+          </div>
+          <div className="text-[12px] text-stone-500 max-w-sm text-right leading-relaxed">
+            These chips are used everywhere — Quick&nbsp;Add, lists, dashboard. Renames update in place; deletes are blocked while in use.
+          </div>
+        </div>
+        <nav className="mt-6 flex gap-1">
+          {SETTINGS_TABS.map(t => {
+            const active = tab === t.id;
+            return (
+              <button key={t.id} onClick={()=>setTab(t.id)}
+                className={'px-4 py-2.5 text-[13px] font-semibold border-b-2 -mb-px flex items-center gap-2 transition ' +
+                  (active ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-800')}>
+                {t.label}
+                <span className={'text-[10.5px] font-mono px-1.5 py-px rounded ' + (active ? 'bg-stone-900 text-white' : 'bg-stone-200 text-stone-600')}>{t.count}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </header>
+      <div className="flex-1 overflow-y-auto" style={{ background:'#fafaf7' }}>
+        {tab==='categories' && <CategoriesTable />}
+        {tab==='methods'    && <MethodsGrid />}
+        {tab==='statuses'   && <StatusesTable />}
+      </div>
+    </div>
+  );
+}
+
+// Shared drag handle (visual only)
+function DragHandle() {
+  return (
+    <span className="cursor-grab text-stone-300 hover:text-stone-700 transition select-none" title="Drag to reorder">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+    </span>
+  );
+}
+
+function ColorDot({ hex, label }) {
+  return (
+    <button className="group inline-flex items-center gap-1.5 px-1.5 py-1 rounded-md border border-stone-200 bg-white hover:border-stone-400 transition" title={label + ' ' + hex}>
+      <span className="w-4 h-4 rounded border border-black/10 flex-shrink-0" style={{ background: hex }} />
+      <span className="text-[10.5px] font-mono text-stone-600 group-hover:text-stone-900 uppercase">{hex.replace('#','')}</span>
+    </button>
+  );
+}
+
+function TableShell({ headers, children, addLabel, gridTemplate }) {
+  return (
+    <div className="px-8 py-6">
+      <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+        <div className="grid items-center px-4 py-2.5 border-b border-stone-200 bg-stone-50 text-[10.5px] uppercase tracking-wider font-semibold text-stone-500"
+             style={{ gridTemplateColumns: gridTemplate }}>
+          {headers.map((h,i)=> <div key={i} className={h.right?'text-right':''}>{h.label}</div>)}
+        </div>
+        <div className="divide-y divide-stone-100">{children}</div>
+        <button className="w-full px-4 py-3 text-[12.5px] text-stone-500 hover:text-stone-900 hover:bg-stone-50 transition flex items-center gap-2 border-t border-dashed border-stone-300">
+          <span className="w-5 h-5 rounded-md border border-dashed border-stone-400 flex items-center justify-center text-stone-400">+</span>
+          {addLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CategoriesTable() {
+  // Mock usage counts so the table feels real
+  const usage = { c1:184, c2:97, c3:42, c4:23, c5:38, c6:31, c7:12, c8:7, c9:9, c10:6 };
+  const grid = '28px 1.4fr 2fr 1fr 1fr .6fr 28px';
+  return (
+    <TableShell
+      addLabel="New category"
+      gridTemplate={grid}
+      headers={[{label:''},{label:'Preview'},{label:'Name'},{label:'Background'},{label:'Foreground'},{label:'Used', right:true},{label:''}]}>
+      {CATEGORIES.map((c, i) => (
+        <div key={c.id} className="grid items-center px-4 py-2.5 hover:bg-stone-50/80 transition" style={{ gridTemplateColumns: grid }}>
+          <div><DragHandle /></div>
+          <div><Chip token={c} size="md" /></div>
+          <div>
+            <input defaultValue={c.name}
+              className="w-full bg-transparent text-[13.5px] font-medium px-1 -mx-1 py-0.5 rounded outline-none border border-transparent hover:border-stone-200 focus:border-stone-900 focus:bg-white transition" />
+          </div>
+          <div><ColorDot hex={c.bg} label="Background" /></div>
+          <div><ColorDot hex={c.fg} label="Foreground" /></div>
+          <div className="text-right font-mono text-[12px] text-stone-600">{usage[c.id]}</div>
+          <div className="text-stone-300 hover:text-rose-600 cursor-pointer text-center text-[15px] leading-none" title="Delete">×</div>
+        </div>
+      ))}
+    </TableShell>
+  );
+}
+
+function StatusesTable() {
+  const usage = { s1:138, s2:46, s3:31, s4:8, s5:2 };
+  const defaultId = 's1';
+  const grid = '28px 1.4fr 1.6fr 1fr 1fr 1fr .8fr 28px';
+  return (
+    <TableShell
+      addLabel="New status"
+      gridTemplate={grid}
+      headers={[{label:''},{label:'Preview'},{label:'Full name'},{label:'Short label'},{label:'Background'},{label:'Foreground'},{label:'Used', right:true},{label:''}]}>
+      {STATUSES.map(s => (
+        <div key={s.id} className="grid items-center px-4 py-2.5 hover:bg-stone-50/80 transition" style={{ gridTemplateColumns: grid }}>
+          <div><DragHandle /></div>
+          <div className="flex items-center gap-2">
+            <Chip token={s} label={s.short} size="md" />
+            {s.id===defaultId && <span className="text-[9.5px] font-semibold text-stone-500 uppercase tracking-wider">default</span>}
+          </div>
+          <div>
+            <input defaultValue={s.name}
+              className="w-full bg-transparent text-[13.5px] font-medium px-1 -mx-1 py-0.5 rounded outline-none border border-transparent hover:border-stone-200 focus:border-stone-900 focus:bg-white transition" />
+          </div>
+          <div>
+            <input defaultValue={s.short}
+              className="w-full bg-transparent text-[12.5px] font-mono text-stone-600 px-1 -mx-1 py-0.5 rounded outline-none border border-transparent hover:border-stone-200 focus:border-stone-900 focus:bg-white transition" />
+          </div>
+          <div><ColorDot hex={s.bg} label="Background" /></div>
+          <div><ColorDot hex={s.fg} label="Foreground" /></div>
+          <div className="text-right font-mono text-[12px] text-stone-600">{usage[s.id]}</div>
+          <div className="text-stone-300 hover:text-rose-600 cursor-pointer text-center text-[15px] leading-none" title="Delete">×</div>
+        </div>
+      ))}
+    </TableShell>
+  );
+}
+
+function MethodsGrid() {
+  const usage = { m1:52, m2:34, m3:81, m4:108, m5:19, m6:14 };
+  return (
+    <div className="px-8 py-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[12px] text-stone-500">Drag any card to reorder · click a swatch to change colors · click the chip to preview at full size.</div>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        {METHODS.map(m => (
+          <div key={m.id} className="group rounded-2xl border border-stone-200 bg-white hover:border-stone-400 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,.12)] transition overflow-hidden">
+            {/* Big swatch preview */}
+            <div className="relative h-[112px] flex items-center justify-center" style={{ background: m.bg }}>
+              <span className="text-[22px] font-semibold tracking-tight" style={{ color: m.fg }}>{m.name}</span>
+              <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition"><DragHandle /></div>
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-white/70 hover:text-white cursor-pointer text-[16px] leading-none px-1.5" title="Delete" style={{ color: m.fg, opacity:.7 }}>×</div>
+            </div>
+            {/* Editable body */}
+            <div className="p-3 flex flex-col gap-2.5">
+              <input defaultValue={m.name}
+                className="w-full bg-transparent text-[14px] font-semibold tracking-tight px-2 -mx-2 py-1 rounded outline-none border border-transparent hover:border-stone-200 focus:border-stone-900 focus:bg-stone-50 transition" />
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1.5">
+                  <ColorDot hex={m.bg} label="Background" />
+                  <ColorDot hex={m.fg} label="Foreground" />
+                </div>
+                <div className="text-[10.5px] uppercase tracking-wider text-stone-500">
+                  <span className="font-mono text-[12px] text-stone-700 font-semibold mr-1">{usage[m.id]}</span>uses
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {/* + New card */}
+        <button className="rounded-2xl border-2 border-dashed border-stone-300 hover:border-stone-900 text-stone-500 hover:text-stone-900 transition flex flex-col items-center justify-center min-h-[214px] gap-2">
+          <span className="w-8 h-8 rounded-full border border-current flex items-center justify-center text-[20px] leading-none">+</span>
+          <span className="text-[12.5px] font-medium">New payment method</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sample expenses (shared between list + detail) ──────────────────────
+const EXPENSES = [
+  { id:'e1', date:'2026-05-11', desc:'Grab to office (team)',         amount:78000,  catId:'c2', methId:'m4', statusId:'s2', raw:'=26000*3', note:'Split with Ade & Rina — manager promised reimbursement at month-end.' },
+  { id:'e2', date:'2026-05-11', desc:'Lunch · Warung Padang',          amount:32000,  catId:'c1', methId:'m6', statusId:'s1', raw:'32000', note:'' },
+  { id:'e3', date:'2026-05-10', desc:'Indomaret · groceries',          amount:147500, catId:'c5', methId:'m3', statusId:'s1', raw:'147500', note:'' },
+  { id:'e4', date:'2026-05-10', desc:'AWS · April invoice',            amount:412000, catId:'c6', methId:'m1', statusId:'s4', raw:'412000', note:'Charged on my card; company will refund.' },
+  { id:'e5', date:'2026-05-09', desc:'Apotek · paracetamol + vitamin', amount:54600,  catId:'c9', methId:'m6', statusId:'s1', raw:'54600', note:'' },
+  { id:'e6', date:'2026-05-09', desc:'Spotify Family',                 amount:79000,  catId:'c8', methId:'m3', statusId:'s1', raw:'79000', note:'' },
+  { id:'e7', date:'2026-05-08', desc:'Office supplies · whiteboard',   amount:189000, catId:'c4', methId:'m5', statusId:'s3', raw:'=89000+100000', note:'Reimbursed via payroll 9 May.' },
+  { id:'e8', date:'2026-05-08', desc:'Gojek · client meeting',         amount:42000,  catId:'c2', methId:'m4', statusId:'s5', raw:'42000', note:'Submitted to finance; awaiting approval.' },
+];
+const getCat = id => CATEGORIES.find(c=>c.id===id);
+const getMeth = id => METHODS.find(m=>m.id===id);
+const getStatus = id => STATUSES.find(s=>s.id===id);
+const fmtDate = (iso, opts={}) => {
+  const d = new Date(iso);
+  const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+  const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  if (opts.long) return `${dayName}, ${d.getDate()} ${monthName} ${d.getFullYear()}`;
+  return `${dayName} ${d.getDate()} ${monthName}`;
+};
+
+// ─── Expenses list (lightweight — table only, for Pass 1 turn 3) ─────────
+function ExpensesListDesktop() {
+  const [selectedId, setSelectedId] = useState('e1');
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [layout, setLayout] = useState('table'); // table | cards | grouped
+  const selected = EXPENSES.find(e=>e.id===selectedId);
+  const totalThis = EXPENSES.reduce((s,e)=>s+e.amount,0);
+  const select = (id) => { setSelectedId(id); setDrawerOpen(true); };
+  return (
+    <div className="h-full flex flex-col overflow-hidden relative">
+      <header className="px-8 py-5 border-b border-stone-200 flex items-baseline justify-between flex-shrink-0">
+        <div>
+          <div className="text-[11.5px] uppercase tracking-wider text-stone-500 font-semibold">Expenses</div>
+          <h1 className="text-[28px] font-bold tracking-tight mt-0.5">All expenses</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="px-3 py-1.5 rounded-lg border border-stone-300 bg-white text-[12.5px] font-medium text-stone-700 flex items-center gap-1.5"><I.cal width={13} height={13}/> May 2026</button>
+          <button className="px-3 py-1.5 rounded-lg border border-stone-300 bg-white text-[12.5px] font-medium text-stone-700 flex items-center gap-1.5"><I.search width={13} height={13}/> Search</button>
+          <button className="px-3 py-1.5 rounded-lg bg-stone-900 text-white text-[12.5px] font-semibold flex items-center gap-1.5"><I.plus width={13} height={13}/> New</button>
+        </div>
+      </header>
+      <div className="px-8 py-3 border-b border-stone-200 bg-stone-50/60 flex items-center gap-5 text-[12px] flex-shrink-0">
+        <div><span className="text-stone-500">8 expenses</span> · <span className="font-mono font-semibold text-stone-900">{fmtIDR(totalThis)}</span></div>
+        <div className="text-stone-400">|</div>
+        <div className="flex items-center gap-1.5"><span className="text-stone-500">Layout:</span>
+          <div className="inline-flex rounded-md border border-stone-300 bg-white p-[2px]">
+            {['table','cards','grouped'].map(k => (
+              <button key={k} onClick={()=>setLayout(k)}
+                className={'px-2 py-[2px] text-[11px] rounded capitalize font-medium ' + (layout===k ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-900')}>
+                {k}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {layout==='table'   && <ListTable   selectedId={selectedId} onSelect={select} />}
+        {layout==='cards'   && <ListCards   selectedId={selectedId} onSelect={select} />}
+        {layout==='grouped' && <ListGrouped selectedId={selectedId} onSelect={select} />}
+      </div>
+
+      {/* Slide-over panel */}
+      {drawerOpen && selected && (
+        <>
+          <div className="absolute inset-0 bg-stone-900/15" onClick={()=>setDrawerOpen(false)} />
+          <div className="absolute top-0 right-0 bottom-0 w-[460px] bg-white border-l border-stone-200 shadow-[-12px_0_40px_-12px_rgba(0,0,0,.18)] flex flex-col animate-[slideOver_.18s_ease]">
+            <ExpenseDetailBody expense={selected} onClose={()=>setDrawerOpen(false)} />
+          </div>
+        </>
+      )}
+      <style>{`@keyframes slideOver{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
+    </div>
+  );
+}
+
+function ListTable({ selectedId, onSelect }) {
+  const grid = '110px 1.6fr 1fr 1fr 1fr 130px 28px';
+  return (
+    <>
+      <div className="grid px-8 py-2 text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold border-b border-stone-200 sticky top-0 z-10" style={{ gridTemplateColumns: grid, background:'#fafaf7' }}>
+        <div>Date</div><div>Description</div><div>Category</div><div>Method</div><div>Status</div><div className="text-right">Amount</div><div></div>
+      </div>
+      {EXPENSES.map(e => {
+        const sel = e.id === selectedId;
+        return (
+          <button key={e.id} onClick={()=>onSelect(e.id)}
+            className={'w-full text-left grid items-center px-8 py-2.5 border-b border-stone-100 text-[13px] transition ' + (sel ? 'bg-amber-50/60' : 'hover:bg-stone-50')}
+            style={{ gridTemplateColumns: grid }}>
+            <div className="text-stone-500 font-mono text-[12px]">{fmtDate(e.date)}</div>
+            <div className="font-medium text-stone-900 truncate">{e.desc}</div>
+            <div><Chip token={getCat(e.catId)} size="sm"/></div>
+            <div><Chip token={getMeth(e.methId)} size="sm"/></div>
+            <div><Chip token={getStatus(e.statusId)} label={getStatus(e.statusId).short} size="sm"/></div>
+            <div className="text-right font-mono font-semibold tabular-nums">{fmtIDR(e.amount)}</div>
+            <div className="text-stone-300">{sel ? <I.chev width={13} height={13} className="rotate-[-90deg]"/> : ''}</div>
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+function ListCards({ selectedId, onSelect }) {
+  return (
+    <div className="px-8 py-5 grid grid-cols-2 gap-3">
+      {EXPENSES.map(e => {
+        const sel = e.id === selectedId;
+        return (
+          <button key={e.id} onClick={()=>onSelect(e.id)}
+            className={'text-left rounded-2xl border bg-white p-4 transition ' + (sel ? 'border-stone-900 shadow-[0_8px_24px_-12px_rgba(0,0,0,.18)]' : 'border-stone-200 hover:border-stone-400')}>
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="text-[11px] font-mono text-stone-500">{fmtDate(e.date, {long:true})}</div>
+              <div className="font-mono text-[18px] font-bold tabular-nums tracking-tight">{fmtIDR(e.amount)}</div>
+            </div>
+            <div className="text-[14px] font-medium text-stone-900 mt-1.5 line-clamp-1">{e.desc}</div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <Chip token={getCat(e.catId)} size="sm"/>
+              <Chip token={getMeth(e.methId)} size="sm"/>
+              <Chip token={getStatus(e.statusId)} label={getStatus(e.statusId).short} size="sm"/>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ListGrouped({ selectedId, onSelect }) {
+  const groups = EXPENSES.reduce((acc, e) => { (acc[e.date] = acc[e.date] || []).push(e); return acc; }, {});
+  return (
+    <div>
+      {Object.entries(groups).map(([date, items]) => {
+        const total = items.reduce((s,e)=>s+e.amount,0);
+        return (
+          <div key={date} className="border-b border-stone-200">
+            <div className="px-8 py-2.5 bg-stone-50/70 flex items-baseline justify-between sticky top-0 z-10">
+              <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">{fmtDate(date, {long:true})}</div>
+              <div className="text-[11.5px] font-mono text-stone-600"><span className="text-stone-400 mr-2">{items.length} item{items.length>1?'s':''}</span>{fmtIDR(total)}</div>
+            </div>
+            <div className="divide-y divide-stone-100">
+              {items.map(e => {
+                const sel = e.id === selectedId;
+                return (
+                  <button key={e.id} onClick={()=>onSelect(e.id)}
+                    className={'w-full text-left px-8 py-2.5 flex items-center gap-4 transition ' + (sel ? 'bg-amber-50/60' : 'hover:bg-stone-50')}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-medium text-stone-900 truncate">{e.desc}</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <Chip token={getCat(e.catId)} size="sm"/>
+                        <Chip token={getMeth(e.methId)} size="sm"/>
+                        {e.statusId!=='s1' && <Chip token={getStatus(e.statusId)} label={getStatus(e.statusId).short} size="sm"/>}
+                      </div>
+                    </div>
+                    <div className="font-mono text-[14px] font-semibold tabular-nums whitespace-nowrap">{fmtIDR(e.amount)}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Receipt (Builder + Live preview) ──────────────────────────
+function ReceiptDesktop() {
+  const [dateFrom, setDateFrom] = useState('2026-05-01');
+  const [dateTo, setDateTo]   = useState('2026-05-11');
+  const [statusIds, setStatusIds] = useState(['s2','s4','s5']);
+  const [catIds, setCatIds] = useState([]); // empty = all
+  const [grouping, setGrouping] = useState('status'); // status | category | none
+  const [includeNonReimb, setIncludeNonReimb] = useState(false);
+  const [title, setTitle] = useState('Reimbursement — May 2026');
+  const [submitterName, setSubmitterName] = useState('Adina Putri');
+
+  const filtered = EXPENSES.filter(e => {
+    if (!statusIds.includes(e.statusId)) return false;
+    if (catIds.length && !catIds.includes(e.catId)) return false;
+    return true;
+  });
+  const total = filtered.reduce((s,e)=>s+e.amount, 0);
+  const toggle = (arr, set, id) => set(arr.includes(id) ? arr.filter(x=>x!==id) : [...arr, id]);
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <header className="px-8 py-5 border-b border-stone-200 flex items-baseline justify-between flex-shrink-0">
+        <div>
+          <div className="text-[11.5px] uppercase tracking-wider text-stone-500 font-semibold">Receipt export</div>
+          <h1 className="text-[28px] font-bold tracking-tight mt-0.5">Build a receipt</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="px-3 py-1.5 rounded-lg border border-stone-300 bg-white text-[12.5px] font-medium text-stone-700">Save preset</button>
+          <button className="px-4 py-1.5 rounded-lg bg-stone-900 text-white text-[12.5px] font-semibold">Export PDF</button>
+        </div>
+      </header>
+      <div className="flex-1 grid grid-cols-[360px_1fr] overflow-hidden">
+        {/* Builder column */}
+        <aside className="border-r border-stone-200 overflow-y-auto px-6 py-5 flex flex-col gap-5" style={{ background:'#f9f7f1' }}>
+          <Section label="Title">
+            <input value={title} onChange={e=>setTitle(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-stone-300 bg-white text-[13px] outline-none focus:border-stone-900 transition" />
+          </Section>
+          <Section label="Submitter">
+            <input value={submitterName} onChange={e=>setSubmitterName(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-stone-300 bg-white text-[13px] outline-none focus:border-stone-900 transition" />
+          </Section>
+          <div className="grid grid-cols-2 gap-2">
+            <Section label="From">
+              <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
+                className="w-full px-2.5 py-2 rounded-lg border border-stone-300 bg-white text-[12.5px] font-mono outline-none focus:border-stone-900 transition" />
+            </Section>
+            <Section label="To">
+              <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
+                className="w-full px-2.5 py-2 rounded-lg border border-stone-300 bg-white text-[12.5px] font-mono outline-none focus:border-stone-900 transition" />
+            </Section>
+          </div>
+          <Section label="Reimbursement status">
+            <div className="flex flex-wrap gap-1.5">
+              {STATUSES.map(s => {
+                const on = statusIds.includes(s.id);
+                return (
+                  <button key={s.id} onClick={()=>toggle(statusIds, setStatusIds, s.id)}
+                    className={'rounded-full transition ' + (on ? 'opacity-100' : 'opacity-35 hover:opacity-70')}>
+                    <Chip token={s} label={s.short} size="md" />
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+          <Section label="Categories">
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={()=>setCatIds([])}
+                className={'px-2.5 py-[3px] rounded-full text-[12px] font-medium transition ' + (catIds.length===0 ? 'bg-stone-900 text-white' : 'border border-stone-300 text-stone-500 hover:text-stone-900')}>
+                All
+              </button>
+              {CATEGORIES.map(c => {
+                const on = catIds.includes(c.id);
+                return (
+                  <button key={c.id} onClick={()=>toggle(catIds, setCatIds, c.id)}
+                    className={'rounded-full transition ' + (on ? 'opacity-100' : 'opacity-35 hover:opacity-70')}>
+                    <Chip token={c} size="md" />
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+          <Section label="Group by">
+            <div className="inline-flex rounded-lg border border-stone-300 bg-white p-[2px] w-full">
+              {[['status','Status'],['category','Category'],['none','None']].map(([k,l]) => (
+                <button key={k} onClick={()=>setGrouping(k)}
+                  className={'flex-1 px-2 py-[5px] text-[11.5px] rounded-md font-medium transition ' + (grouping===k ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-900')}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </Section>
+          <div className="text-[11px] text-stone-500 leading-relaxed border-t border-stone-200 pt-3">
+            Preview updates live. Status & category chips are tri-state — dim = hidden, full = included. Tap to flip.
+          </div>
+        </aside>
+
+        {/* Live preview column */}
+        <div className="overflow-y-auto bg-stone-100 px-10 py-8">
+          <div className="max-w-[640px] mx-auto bg-white border border-stone-300 shadow-[0_18px_48px_-18px_rgba(0,0,0,.18)] rounded-md">
+            <ReceiptPreview title={title} submitter={submitterName} from={dateFrom} to={dateTo}
+              items={filtered} grouping={grouping} total={total} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReceiptPreview({ title, submitter, from, to, items, grouping, total }) {
+  let sections;
+  if (grouping === 'status') {
+    sections = STATUSES
+      .map(s => ({ key:s.id, label:s.name, token:s, items: items.filter(e=>e.statusId===s.id) }))
+      .filter(s => s.items.length);
+  } else if (grouping === 'category') {
+    sections = CATEGORIES
+      .map(c => ({ key:c.id, label:c.name, token:c, items: items.filter(e=>e.catId===c.id) }))
+      .filter(s => s.items.length);
+  } else {
+    sections = [{ key:'all', label:null, token:null, items }];
+  }
+  const grid = '90px 1fr 110px 110px 120px';
+  return (
+    <div className="px-10 py-10">
+      {/* Letterhead */}
+      <div className="flex items-start justify-between border-b border-stone-300 pb-5 mb-6">
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.18em] text-stone-500 font-semibold">Expense Receipt</div>
+          <h2 className="text-[22px] font-bold tracking-tight mt-1 leading-tight">{title}</h2>
+          <div className="text-[12px] text-stone-600 mt-1">{submitter} · {fmtDate(from, {long:true})} — {fmtDate(to, {long:true})}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Total claim</div>
+          <div className="font-mono text-[26px] font-bold tracking-tight mt-0.5">{fmtIDR(total)}</div>
+          <div className="text-[10.5px] text-stone-500 mt-0.5">{items.length} expenses</div>
+        </div>
+      </div>
+
+      {/* Sections */}
+      {sections.length === 0 && <div className="text-center text-stone-400 text-[12px] py-10">No expenses match these filters.</div>}
+      {sections.map(sec => {
+        const subtotal = sec.items.reduce((s,e)=>s+e.amount, 0);
+        return (
+          <div key={sec.key} className="mb-5">
+            {sec.label && (
+              <div className="flex items-baseline justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <Chip token={sec.token} size="md" />
+                  <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">{sec.items.length} item{sec.items.length>1?'s':''}</div>
+                </div>
+                <div className="font-mono text-[13.5px] font-semibold">{fmtIDR(subtotal)}</div>
+              </div>
+            )}
+            <div className="grid text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold py-1.5 border-b border-stone-300" style={{ gridTemplateColumns: grid }}>
+              <div>Date</div><div>Description</div><div>Category</div><div>Method</div><div className="text-right">Amount</div>
+            </div>
+            {sec.items.map(e => (
+              <div key={e.id} className="grid items-center py-2 border-b border-stone-100 text-[12px]" style={{ gridTemplateColumns: grid }}>
+                <div className="font-mono text-stone-500">{fmtDate(e.date)}</div>
+                <div className="font-medium text-stone-900">{e.desc}</div>
+                <div><Chip token={getCat(e.catId)} size="sm" /></div>
+                <div><Chip token={getMeth(e.methId)} size="sm" /></div>
+                <div className="text-right font-mono font-semibold tabular-nums">{fmtIDR(e.amount)}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      {/* Footer */}
+      <div className="mt-8 pt-5 border-t-2 border-stone-900 flex items-baseline justify-between">
+        <div>
+          <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Grand total</div>
+          <div className="text-[10.5px] text-stone-500 mt-0.5">Signed: ______________________</div>
+        </div>
+        <div className="font-mono text-[28px] font-bold tracking-tight">{fmtIDR(total)}</div>
+      </div>
+      <div className="text-[9.5px] text-stone-400 mt-5 text-center">Generated from Ledger on {fmtDate('2026-05-11', {long:true})}</div>
+    </div>
+  );
+}
+
+// ─── Dashboard (Hero) ──────────────────────────────────────
+function DashboardDesktop({ setRoute }) {
+  const total = EXPENSES.reduce((s,e)=>s+e.amount, 0);
+  // Bucket by category for the bar
+  const byCat = CATEGORIES.map(c => ({ ...c, amount: EXPENSES.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount, 0) }))
+                          .filter(c => c.amount > 0)
+                          .sort((a,b)=>b.amount-a.amount);
+  const maxCat = byCat[0]?.amount || 1;
+  // Reimbursement buckets
+  const owed = EXPENSES.filter(e => ['s2','s4','s5'].includes(e.statusId)).reduce((s,e)=>s+e.amount, 0);
+  const paid = EXPENSES.filter(e => e.statusId==='s3').reduce((s,e)=>s+e.amount, 0);
+  const own  = EXPENSES.filter(e => e.statusId==='s1').reduce((s,e)=>s+e.amount, 0);
+  // 14-day sparkline (fabricated daily totals)
+  const days = Array.from({length:14}, (_,i) => ({ d: 28+i > 30 ? (28+i-30) : (28+i), m: 28+i > 30 ? 'May' : 'Apr', v: 0 }));
+  EXPENSES.forEach(e => { const day = new Date(e.date).getDate(); const idx = days.findIndex(x=>x.d===day && x.m==='May'); if (idx>=0) days[idx].v += e.amount; });
+  const maxDay = Math.max(...days.map(d=>d.v), 1);
+
+  return (
+    <div className="h-full overflow-y-auto">
+      {/* Hero */}
+      <div className="px-10 pt-10 pb-8" style={{ background:'linear-gradient(180deg, #f2efe8 0%, #fafaf7 100%)' }}>
+        <div className="text-[11.5px] uppercase tracking-wider text-stone-500 font-semibold">This month · May 2026</div>
+        <div className="flex items-baseline gap-3 mt-1">
+          <span className="font-mono text-[20px] text-stone-500">Rp</span>
+          <span className="font-mono text-[80px] font-bold tracking-[-0.02em] leading-none">{fmtIDR(total).replace('Rp ','')}</span>
+        </div>
+        <div className="mt-2 text-[13px] text-stone-600">across <b className="text-stone-900">{EXPENSES.length} expenses</b> in <b className="text-stone-900">{byCat.length} categories</b> · <span className="text-emerald-700 font-semibold">↓ 18%</span> vs April</div>
+        {/* Bar */}
+        <div className="mt-5">
+          <div className="flex rounded-md overflow-hidden h-3 border border-stone-300">
+            {byCat.map(c => (
+              <div key={c.id} title={c.name + ' · ' + fmtIDR(c.amount)} style={{ background: c.bg, width: `${(c.amount/total)*100}%` }} />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {byCat.map(c => (
+              <div key={c.id} className="inline-flex items-center gap-1.5 text-[11px]">
+                <Chip token={c} size="sm" />
+                <span className="font-mono text-stone-600">{fmtIDR(c.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Context row */}
+      <div className="px-10 py-6 grid grid-cols-3 gap-4">
+        <button onClick={()=>setRoute('receipt')}
+          className="text-left rounded-2xl border border-stone-200 bg-white p-5 hover:border-stone-400 transition">
+          <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Owed to you</div>
+          <div className="font-mono text-[26px] font-bold tracking-tight mt-1">{fmtIDR(owed)}</div>
+          <div className="text-[11.5px] text-stone-500 mt-1">Unpaid + Early + Pending reimbursements</div>
+          <div className="mt-3 inline-flex items-center gap-1 text-[11.5px] font-semibold text-stone-900">Build receipt <I.chev width={11} height={11} className="rotate-[-90deg]" /></div>
+        </button>
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Paid back</div>
+          <div className="font-mono text-[26px] font-bold tracking-tight mt-1">{fmtIDR(paid)}</div>
+          <div className="text-[11.5px] text-stone-500 mt-1">Cleared by employer this month</div>
+        </div>
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Truly yours</div>
+          <div className="font-mono text-[26px] font-bold tracking-tight mt-1">{fmtIDR(own)}</div>
+          <div className="text-[11.5px] text-stone-500 mt-1">Non-reimbursable personal spend</div>
+        </div>
+      </div>
+
+      {/* Daily sparkline */}
+      <div className="px-10 pb-6">
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="text-[11.5px] uppercase tracking-wider text-stone-500 font-semibold">Daily spend · last 14 days</div>
+            <div className="text-[11px] text-stone-500">peak <span className="font-mono text-stone-900 font-semibold">{fmtIDR(maxDay)}</span></div>
+          </div>
+          <div className="flex items-end gap-1 h-[120px]">
+            {days.map((d,i) => {
+              const h = Math.max(2, (d.v/maxDay)*100);
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group">
+                  <div className="w-full rounded-t-md transition group-hover:opacity-80" style={{ height: `${h}%`, background: d.v>0 ? '#0a0908' : '#e7e5e0' }} />
+                  <div className="text-[9.5px] font-mono text-stone-400">{d.d}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Top expenses */}
+      <div className="px-10 pb-10">
+        <div className="text-[11.5px] uppercase tracking-wider text-stone-500 font-semibold mb-2">Top expenses</div>
+        <div className="rounded-2xl border border-stone-200 bg-white divide-y divide-stone-100 overflow-hidden">
+          {[...EXPENSES].sort((a,b)=>b.amount-a.amount).slice(0,5).map(e => (
+            <button key={e.id} onClick={()=>setRoute('expenses')} className="w-full text-left px-5 py-3 flex items-center gap-4 hover:bg-stone-50 transition">
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] font-medium text-stone-900 truncate">{e.desc}</div>
+                <div className="mt-1 flex flex-wrap gap-1"><Chip token={getCat(e.catId)} size="sm"/><Chip token={getMeth(e.methId)} size="sm"/></div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-[15px] font-bold tabular-nums">{fmtIDR(e.amount)}</div>
+                <div className="text-[10.5px] font-mono text-stone-500">{fmtDate(e.date)}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Shared body used by both the slide-over and the bottom sheet
+function ExpenseDetailBody({ expense, onClose, mobile }) {
+  const cat = getCat(expense.catId);
+  const meth = getMeth(expense.methId);
+  const status = getStatus(expense.statusId);
+  // Build a plausible history timeline from current status
+  const history = buildHistory(expense);
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Header */}
+      <header className={'px-6 ' + (mobile ? 'pt-4 pb-3' : 'pt-5 pb-4') + ' border-b border-stone-200 flex-shrink-0'}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">Expense · {fmtDate(expense.date, {long:true})}</div>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-900 text-[18px] leading-none">×</button>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-[14px] font-mono text-stone-500">Rp</span>
+          <span className="font-mono text-[34px] font-bold tracking-tight leading-none">{fmtIDR(expense.amount).replace('Rp ','')}</span>
+        </div>
+        {expense.raw.startsWith('=') && <div className="text-[11.5px] font-mono text-stone-500 mt-1">{expense.raw}</div>}
+        <div className="mt-3 text-[15px] font-medium text-stone-900">{expense.desc}</div>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          <Chip token={cat} size="md"/><Chip token={meth} size="md"/><Chip token={status} size="md"/>
+        </div>
+      </header>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-6 py-4 border-b border-stone-100">
+          <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-2">Details</div>
+          <div className="grid grid-cols-[110px_1fr] gap-y-2 text-[13px]">
+            <div className="text-stone-500">Date</div><div className="font-medium">{fmtDate(expense.date, {long:true})}</div>
+            <div className="text-stone-500">Category</div><div><Chip token={cat} size="sm"/></div>
+            <div className="text-stone-500">Method</div><div><Chip token={meth} size="sm"/></div>
+            <div className="text-stone-500">Status</div><div><Chip token={status} size="sm"/></div>
+            {expense.note && <><div className="text-stone-500">Note</div><div className="text-stone-700 leading-relaxed">{expense.note}</div></>}
+          </div>
+        </div>
+
+        {/* History timeline */}
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">History</div>
+            <div className="text-[10.5px] text-stone-400">{history.length} events</div>
+          </div>
+          <ol className="relative">
+            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-stone-200" />
+            {history.map((h, i) => (
+              <li key={i} className="relative pl-7 pb-4 last:pb-1">
+                <span className={'absolute left-0 top-[3px] w-[15px] h-[15px] rounded-full border-2 ' + (i===0 ? 'bg-stone-900 border-stone-900' : 'bg-white border-stone-300')} />
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="text-[12.5px] font-semibold text-stone-900">{h.label}</div>
+                  <div className="text-[10.5px] text-stone-400 font-mono whitespace-nowrap">{h.when}</div>
+                </div>
+                {h.detail && <div className="text-[12px] text-stone-500 mt-0.5 leading-relaxed">{h.detail}</div>}
+                {h.from && h.to && (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
+                    <Chip token={h.from} size="sm"/>
+                    <span className="text-stone-400">→</span>
+                    <Chip token={h.to} size="sm"/>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-stone-200 px-6 py-3 flex items-center gap-2 flex-shrink-0">
+        <button className="px-3 py-2 rounded-lg border border-stone-300 text-[12.5px] font-semibold text-rose-600 hover:bg-rose-50">Delete</button>
+        <div className="flex-1"/>
+        <button className="px-3 py-2 rounded-lg border border-stone-300 text-[12.5px] font-semibold text-stone-700">Duplicate</button>
+        <button className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-white" style={{ background:'#0a0908' }}>Edit</button>
+      </div>
+    </div>
+  );
+}
+
+function buildHistory(e) {
+  const out = [
+    { label:'Expense created', when:'11 May · 09:14', detail:'Logged via Quick Add on iPhone.' },
+  ];
+  if (['s2','s3','s4','s5'].includes(e.statusId)) {
+    out.push({ label:'Status changed', when:'11 May · 09:14', from:getStatus('s1'), to:getStatus('s2') });
+  }
+  if (e.statusId === 's5') {
+    out.push({ label:'Submitted to finance', when:'12 May · 16:30', detail:'Receipts attached. Awaiting approval.', from:getStatus('s2'), to:getStatus('s5') });
+  }
+  if (e.statusId === 's4') {
+    out.push({ label:'Marked early reimbursement', when:'10 May · 11:02', detail:'Will be reimbursed in next payroll cycle.', from:getStatus('s2'), to:getStatus('s4') });
+  }
+  if (e.statusId === 's3') {
+    out.push({ label:'Submitted to finance', when:'9 May · 10:00', from:getStatus('s2'), to:getStatus('s5') });
+    out.push({ label:'Paid', when:'9 May · 17:42', detail:'Reimbursed via payroll. Cleared.', from:getStatus('s5'), to:getStatus('s3') });
+  }
+  return out.reverse();
+}
+
+// ─── Expenses list (mobile) — grouped-by-day cards + bottom sheet ────────
+function ExpensesListMobile() {
+  const [openId, setOpenId] = useState(null);
+  const open = openId && EXPENSES.find(e=>e.id===openId);
+  const groups = EXPENSES.reduce((acc, e) => {
+    (acc[e.date] = acc[e.date] || []).push(e); return acc;
+  }, {});
+  return (
+    <div className="h-full flex flex-col">
+      <header className="px-5 pt-3 pb-3 border-b border-stone-200 bg-paper flex items-baseline justify-between" style={{ background:'#fafaf7' }}>
+        <div>
+          <div className="text-[11px] text-stone-500 font-medium">May 2026</div>
+          <h1 className="text-[22px] font-bold tracking-tight">Expenses</h1>
+        </div>
+        <div className="flex gap-2">
+          <button className="w-9 h-9 rounded-full border border-stone-300 flex items-center justify-center text-stone-600"><I.search width={14} height={14}/></button>
+        </div>
+      </header>
+      <div className="flex-1 overflow-y-auto pb-4">
+        {Object.entries(groups).map(([date, items]) => {
+          const dayTotal = items.reduce((s,e)=>s+e.amount,0);
+          return (
+            <div key={date}>
+              <div className="px-5 pt-4 pb-1.5 flex items-baseline justify-between">
+                <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">{fmtDate(date, {long:true})}</div>
+                <div className="text-[11px] font-mono text-stone-500">{fmtIDR(dayTotal)}</div>
+              </div>
+              <div className="px-3 flex flex-col gap-1">
+                {items.map(e => (
+                  <button key={e.id} onClick={()=>setOpenId(e.id)}
+                    className="w-full text-left px-2.5 py-2.5 rounded-xl hover:bg-stone-100 active:bg-stone-100 transition">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13.5px] font-medium text-stone-900 truncate">{e.desc}</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <Chip token={getCat(e.catId)} size="sm"/>
+                          <Chip token={getMeth(e.methId)} size="sm"/>
+                          {e.statusId!=='s1' && <Chip token={getStatus(e.statusId)} label={getStatus(e.statusId).short} size="sm"/>}
+                        </div>
+                      </div>
+                      <div className="font-mono text-[14px] font-semibold tabular-nums whitespace-nowrap">{fmtIDR(e.amount)}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Bottom sheet */}
+      {open && (
+        <div className="absolute inset-0 z-30 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-stone-900/40" onClick={()=>setOpenId(null)} />
+          <div className="relative bg-white border-t border-stone-200 rounded-t-3xl shadow-2xl max-h-[88%] flex flex-col animate-[slideUp_.22s_ease]">
+            <div className="flex justify-center pt-2 pb-1 flex-shrink-0"><div className="w-10 h-[5px] rounded-full bg-stone-300" /></div>
+            <ExpenseDetailBody expense={open} onClose={()=>setOpenId(null)} mobile />
+          </div>
+          <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Closing wrapper for App's TweaksCtx.Provider + render
+function Root() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  return (
+    <TweaksCtx.Provider value={{ selStyle: t.selStyle }}>
+      <App />
+      <TweaksPanel>
+        <TweakSection label="Chip selection style" />
+        <div style={{fontSize:'10.5px', color:'rgba(41,38,27,.62)', lineHeight:1.4, marginTop:'-2px'}}>
+          Pick how the selected category/method chip in Quick Add reads. Try each — the current ring is the baseline you wanted to replace.
+        </div>
+        <TweakSelect label="Style" value={t.selStyle}
+          options={[
+            {value:'ring',    label:'Ring outline (current)'},
+            {value:'bigger',  label:'Bigger + bold'},
+            {value:'darker',  label:'Darker bg + bold'},
+            {value:'both',    label:'Bigger + darker'},
+            {value:'invert',  label:'Bigger + inverted + halo'},
+            {value:'halo',    label:'Bigger + halo (no invert)'},
+          ]}
+          onChange={(v) => setTweak('selStyle', v)} />
+        <div style={{fontSize:'10.5px', color:'rgba(41,38,27,.5)', lineHeight:1.4, marginTop:'4px'}}>
+          Switch to <b>Quick Add</b> (mobile or desktop) and tap chips to compare. Setting persists to file.
+        </div>
+      </TweaksPanel>
+    </TweaksCtx.Provider>
+  );
+}
+
+// Replace App-internal TweaksCtx.Provider wrapper since Root now owns it:
+// (App's own provider becomes a no-op fragment.)
+// ─── Mobile: Dashboard ────────────────────────────────────────
+function DashboardMobile({ setRoute }) {
+  const total = EXPENSES.reduce((s,e)=>s+e.amount, 0);
+  const byCat = CATEGORIES.map(c => ({ ...c, amount: EXPENSES.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount, 0) }))
+                          .filter(c => c.amount > 0)
+                          .sort((a,b)=>b.amount-a.amount);
+  const owed = EXPENSES.filter(e => ['s2','s4','s5'].includes(e.statusId)).reduce((s,e)=>s+e.amount, 0);
+  const paid = EXPENSES.filter(e => e.statusId==='s3').reduce((s,e)=>s+e.amount, 0);
+  const own  = EXPENSES.filter(e => e.statusId==='s1').reduce((s,e)=>s+e.amount, 0);
+  return (
+    <div className="h-full overflow-y-auto">
+      {/* Hero */}
+      <div className="px-5 pt-4 pb-5" style={{ background:'linear-gradient(180deg, #f2efe8 0%, #fafaf7 100%)' }}>
+        <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">May 2026</div>
+        <div className="flex items-baseline gap-2 mt-0.5">
+          <span className="font-mono text-[13px] text-stone-500">Rp</span>
+          <span className="font-mono text-[44px] font-bold tracking-[-0.02em] leading-none">{fmtIDR(total).replace('Rp ','')}</span>
+        </div>
+        <div className="mt-1.5 text-[11.5px] text-stone-600">{EXPENSES.length} expenses · <span className="text-emerald-700 font-semibold">↓ 18%</span> vs Apr</div>
+        <div className="mt-3 flex rounded-md overflow-hidden h-2.5 border border-stone-300">
+          {byCat.map(c => <div key={c.id} style={{ background: c.bg, width: `${(c.amount/total)*100}%` }} />)}
+        </div>
+      </div>
+
+      {/* Reimbursement summary */}
+      <div className="px-5 pt-3 pb-2 text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Reimbursements</div>
+      <div className="px-5 pb-4 flex flex-col gap-2">
+        <button onClick={()=>setRoute('receipt')} className="w-full text-left rounded-xl border border-stone-200 bg-white p-3.5 active:bg-stone-50">
+          <div className="flex items-baseline justify-between">
+            <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">Owed to you</div>
+            <I.chev width={11} height={11} className="text-stone-300 rotate-[-90deg]" />
+          </div>
+          <div className="font-mono text-[22px] font-bold tracking-tight mt-1">{fmtIDR(owed)}</div>
+          <div className="text-[11px] text-stone-500 mt-0.5">Tap to build receipt</div>
+        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-stone-200 bg-white p-3">
+            <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Paid back</div>
+            <div className="font-mono text-[16px] font-bold tracking-tight mt-0.5">{fmtIDR(paid)}</div>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-white p-3">
+            <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Truly yours</div>
+            <div className="font-mono text-[16px] font-bold tracking-tight mt-0.5">{fmtIDR(own)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* By category */}
+      <div className="px-5 pt-2 pb-2 text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">By category</div>
+      <div className="px-5 pb-4 flex flex-col gap-1.5">
+        {byCat.map(c => (
+          <div key={c.id} className="flex items-center gap-3">
+            <div className="w-[110px]"><Chip token={c} size="sm"/></div>
+            <div className="flex-1 h-1.5 rounded-full bg-stone-100 overflow-hidden"><div className="h-full rounded-full" style={{ background: c.bg, width: `${(c.amount/byCat[0].amount)*100}%` }} /></div>
+            <div className="font-mono text-[11.5px] tabular-nums w-[80px] text-right text-stone-700">{fmtIDR(c.amount)}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Top expenses peek */}
+      <div className="px-5 pt-2 pb-2 flex items-baseline justify-between">
+        <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Top expenses</div>
+        <button onClick={()=>setRoute('expenses')} className="text-[11px] text-stone-500 font-medium">All →</button>
+      </div>
+      <div className="px-3 pb-6 flex flex-col gap-1">
+        {[...EXPENSES].sort((a,b)=>b.amount-a.amount).slice(0,4).map(e => (
+          <div key={e.id} className="px-2.5 py-2 rounded-xl flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-medium text-stone-900 truncate">{e.desc}</div>
+              <div className="mt-1 flex flex-wrap gap-1"><Chip token={getCat(e.catId)} size="sm"/><Chip token={getMeth(e.methId)} size="sm"/></div>
+            </div>
+            <div className="font-mono text-[13.5px] font-semibold tabular-nums whitespace-nowrap">{fmtIDR(e.amount)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Mobile: Receipt builder (sheet builder + scrollable preview) ─────────
+function ReceiptMobile() {
+  const [statusIds, setStatusIds] = useState(['s2','s4','s5']);
+  const [grouping, setGrouping] = useState('status');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtered = EXPENSES.filter(e => statusIds.includes(e.statusId));
+  const total = filtered.reduce((s,e)=>s+e.amount, 0);
+  const toggle = (id) => setStatusIds(s => s.includes(id) ? s.filter(x=>x!==id) : [...s, id]);
+  return (
+    <div className="h-full flex flex-col">
+      <header className="px-5 pt-3 pb-3 border-b border-stone-200 flex items-baseline justify-between bg-paper flex-shrink-0" style={{ background:'#fafaf7' }}>
+        <div>
+          <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Receipt</div>
+          <h1 className="text-[20px] font-bold tracking-tight">May 2026</h1>
+        </div>
+        <button onClick={()=>setFiltersOpen(true)} className="text-[12px] font-semibold text-stone-700 border border-stone-300 px-3 py-1.5 rounded-lg bg-white">Filters</button>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="bg-white border border-stone-300 rounded-md shadow-[0_6px_24px_-12px_rgba(0,0,0,.15)] px-5 py-5">
+          <div className="flex items-start justify-between pb-3 border-b border-stone-300">
+            <div>
+              <div className="text-[9.5px] uppercase tracking-[0.18em] text-stone-500 font-semibold">Expense Receipt</div>
+              <div className="text-[15px] font-bold tracking-tight mt-1 leading-tight">Reimbursement — May 2026</div>
+              <div className="text-[10px] text-stone-600 mt-0.5">Adina Putri · 1–11 May</div>
+            </div>
+            <div className="text-right">
+              <div className="font-mono text-[18px] font-bold tracking-tight">{fmtIDR(total)}</div>
+              <div className="text-[10px] text-stone-500">{filtered.length} items</div>
+            </div>
+          </div>
+          {filtered.length === 0 && <div className="text-center text-stone-400 text-[11px] py-8">No expenses match these filters.</div>}
+          {STATUSES.filter(s => statusIds.includes(s.id) && filtered.some(e=>e.statusId===s.id)).map(s => {
+            const items = filtered.filter(e=>e.statusId===s.id);
+            const sub = items.reduce((sum,e)=>sum+e.amount, 0);
+            return (
+              <div key={s.id} className="mt-3">
+                <div className="flex items-baseline justify-between mb-1">
+                  <Chip token={s} label={s.short} size="sm" />
+                  <div className="font-mono text-[11.5px] font-semibold">{fmtIDR(sub)}</div>
+                </div>
+                {items.map(e => (
+                  <div key={e.id} className="flex items-baseline justify-between py-1.5 border-b border-stone-100 text-[11px]">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <div className="font-medium text-stone-900 truncate">{e.desc}</div>
+                      <div className="text-stone-500 font-mono text-[10px]">{fmtDate(e.date)}</div>
+                    </div>
+                    <div className="font-mono font-semibold tabular-nums whitespace-nowrap">{fmtIDR(e.amount)}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+          <div className="mt-4 pt-3 border-t-2 border-stone-900 flex items-baseline justify-between">
+            <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Grand total</div>
+            <div className="font-mono text-[18px] font-bold tracking-tight">{fmtIDR(total)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-stone-200 bg-white px-5 py-3 flex gap-2 flex-shrink-0">
+        <button className="flex-1 py-3 rounded-xl border border-stone-300 text-[13px] font-semibold text-stone-700">Share</button>
+        <button className="flex-[2] py-3 rounded-xl text-[13px] font-semibold text-white" style={{ background:'#0a0908' }}>Export PDF</button>
+      </div>
+
+      {/* Filter bottom sheet */}
+      {filtersOpen && (
+        <div className="absolute inset-0 z-30 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-stone-900/40" onClick={()=>setFiltersOpen(false)} />
+          <div className="relative bg-white border-t border-stone-200 rounded-t-3xl shadow-2xl max-h-[80%] flex flex-col animate-[slideUp_.22s_ease]">
+            <div className="flex justify-center pt-2 pb-1"><div className="w-10 h-[5px] rounded-full bg-stone-300" /></div>
+            <div className="px-5 pb-4 overflow-y-auto">
+              <div className="text-[15px] font-bold tracking-tight mb-3">Filter receipt</div>
+              <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold mb-2">Status</div>
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {STATUSES.map(s => {
+                  const on = statusIds.includes(s.id);
+                  return (
+                    <button key={s.id} onClick={()=>toggle(s.id)} className={'rounded-full transition ' + (on ? 'opacity-100' : 'opacity-35')}>
+                      <Chip token={s} label={s.short} size="md" />
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold mb-2">Group by</div>
+              <div className="inline-flex rounded-lg border border-stone-300 bg-white p-[2px] w-full">
+                {[['status','Status'],['category','Category'],['none','None']].map(([k,l]) => (
+                  <button key={k} onClick={()=>setGrouping(k)}
+                    className={'flex-1 px-2 py-2 text-[12px] rounded-md font-medium transition ' + (grouping===k ? 'bg-stone-900 text-white' : 'text-stone-500')}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <button onClick={()=>setFiltersOpen(false)} className="w-full mt-5 py-3 rounded-xl text-[13px] font-semibold text-white" style={{ background:'#0a0908' }}>Apply</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Mobile: Settings (tabs at top, full-bleed tab content) ─────────────
+function SettingsMobile() {
+  const [tab, setTab] = useState('categories');
+  return (
+    <div className="h-full flex flex-col">
+      <header className="px-5 pt-3 pb-2 border-b border-stone-200 bg-paper flex-shrink-0" style={{ background:'#fafaf7' }}>
+        <div className="text-[10.5px] uppercase tracking-wider text-stone-500 font-semibold">Settings</div>
+        <h1 className="text-[20px] font-bold tracking-tight">Reference data</h1>
+        <div className="mt-2 flex gap-1">
+          {SETTINGS_TABS.map(t => {
+            const active = tab === t.id;
+            return (
+              <button key={t.id} onClick={()=>setTab(t.id)}
+                className={'flex-1 px-2 py-1.5 text-[11.5px] font-semibold border-b-2 -mb-px flex items-center justify-center gap-1.5 transition ' +
+                  (active ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500')}>
+                {t.label.split(' ')[0]}
+                <span className={'text-[10px] font-mono px-1 rounded ' + (active ? 'bg-stone-900 text-white' : 'bg-stone-200 text-stone-600')}>{t.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        {tab === 'categories' && (
+          <div className="flex flex-col gap-2">
+            {CATEGORIES.map(c => (
+              <div key={c.id} className="rounded-xl border border-stone-200 bg-white p-3 flex items-center gap-3">
+                <DragHandle />
+                <Chip token={c} size="md" />
+                <div className="flex-1"></div>
+                <div className="flex gap-1">
+                  <span className="w-5 h-5 rounded border border-stone-200" style={{ background: c.bg }} />
+                  <span className="w-5 h-5 rounded border border-stone-200" style={{ background: c.fg }} />
+                </div>
+                <I.chev width={12} height={12} className="text-stone-300 rotate-[-90deg]" />
+              </div>
+            ))}
+            <button className="rounded-xl border-2 border-dashed border-stone-300 text-stone-500 py-3 text-[12.5px] font-medium">+ New category</button>
+          </div>
+        )}
+        {tab === 'methods' && (
+          <div className="grid grid-cols-2 gap-2">
+            {METHODS.map(m => (
+              <div key={m.id} className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+                <div className="h-[60px] flex items-center justify-center" style={{ background: m.bg }}>
+                  <span className="text-[14px] font-semibold tracking-tight" style={{ color: m.fg }}>{m.name}</span>
+                </div>
+                <div className="px-2.5 py-2 flex items-center justify-between">
+                  <div className="flex gap-1">
+                    <span className="w-4 h-4 rounded border border-stone-200" style={{ background: m.bg }} />
+                    <span className="w-4 h-4 rounded border border-stone-200" style={{ background: m.fg }} />
+                  </div>
+                  <DragHandle />
+                </div>
+              </div>
+            ))}
+            <button className="rounded-xl border-2 border-dashed border-stone-300 text-stone-500 min-h-[100px] text-[12.5px] font-medium flex items-center justify-center">+ New</button>
+          </div>
+        )}
+        {tab === 'statuses' && (
+          <div className="flex flex-col gap-2">
+            {STATUSES.map(s => (
+              <div key={s.id} className="rounded-xl border border-stone-200 bg-white p-3 flex items-center gap-3">
+                <DragHandle />
+                <Chip token={s} label={s.short} size="md" />
+                <div className="flex-1 text-[11px] text-stone-500 truncate">{s.name}</div>
+                <I.chev width={12} height={12} className="text-stone-300 rotate-[-90deg]" />
+              </div>
+            ))}
+            <button className="rounded-xl border-2 border-dashed border-stone-300 text-stone-500 py-3 text-[12.5px] font-medium">+ New status</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
+</script>
+</body>
+</html>
