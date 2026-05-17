@@ -7,6 +7,7 @@ import { loadConfig, type AppConfig } from './config/env.js';
 import { buildContainer } from './container.js';
 import { expenseRoutes } from './contexts/expenses/interfaces/http/routes/expenseRoutes.js';
 import { referenceRoutes } from './contexts/categorization/interfaces/http/routes/referenceRoutes.js';
+import { reimbursementRoutes } from './contexts/reimbursements/interfaces/http/routes/reimbursementRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
   app.use('/api/categories', referenceRoutes(container.categoryController));
   app.use('/api/methods', referenceRoutes(container.methodController));
   app.use('/api/reimbursement-statuses', referenceRoutes(container.reimbursementStatusController));
+  app.use('/api/reimbursements', reimbursementRoutes(container.reimbursementController));
 
   if (!config.isProd) {
     const clientReady = existsSync(path.join(clientDir, 'index.html'));

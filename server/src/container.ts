@@ -66,6 +66,28 @@ import {
   makeExpenseController,
   type ExpenseController,
 } from './contexts/expenses/interfaces/http/controllers/ExpenseController.js';
+import {
+  ExpenseDeleted,
+  ExpenseRecorded,
+} from './contexts/expenses/application/events/index.js';
+
+// Reimbursements context
+import { ReimbursementStatusKindLookup } from './contexts/categorization/application/services/ReimbursementStatusKindLookup.js';
+import { GetReimbursement } from './contexts/reimbursements/application/use-cases/GetReimbursement.js';
+import { GetReimbursementByExpense } from './contexts/reimbursements/application/use-cases/GetReimbursementByExpense.js';
+import { ListUnpaidReimbursables } from './contexts/reimbursements/application/use-cases/ListUnpaidReimbursables.js';
+import { MarkAsEarly } from './contexts/reimbursements/application/use-cases/MarkAsEarly.js';
+import { MarkAsNonReimbursable } from './contexts/reimbursements/application/use-cases/MarkAsNonReimbursable.js';
+import { MarkAsPaid } from './contexts/reimbursements/application/use-cases/MarkAsPaid.js';
+import { MarkAsPending } from './contexts/reimbursements/application/use-cases/MarkAsPending.js';
+import { MarkAsUnpaid } from './contexts/reimbursements/application/use-cases/MarkAsUnpaid.js';
+import { CreateReimbursementOnExpenseRecorded } from './contexts/reimbursements/application/event-handlers/CreateReimbursementOnExpenseRecorded.js';
+import { DeleteReimbursementOnExpenseDeleted } from './contexts/reimbursements/application/event-handlers/DeleteReimbursementOnExpenseDeleted.js';
+import { PrismaReimbursementRepository } from './contexts/reimbursements/infrastructure/persistence/prisma/PrismaReimbursementRepository.js';
+import {
+  makeReimbursementController,
+  type ReimbursementController,
+} from './contexts/reimbursements/interfaces/http/controllers/makeReimbursementController.js';
 
 export interface Container {
   readonly eventBus: EventBus;
@@ -73,6 +95,7 @@ export interface Container {
   readonly methodController: ReferenceController;
   readonly reimbursementStatusController: ReferenceController;
   readonly expenseController: ExpenseController;
+  readonly reimbursementController: ReimbursementController;
   shutdown(): Promise<void>;
 }
 
@@ -131,13 +154,48 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     delete: new DeleteExpense(expenseRepo, eventBus),
   });
 
+  // Reimbursements
+  const reimbursementRepo = new PrismaReimbursementRepository(prisma);
+  const reimbursementStatusKindLookup = new ReimbursementStatusKindLookup(reimbursementStatusRepo);
+  const reimbursementController = makeReimbursementController({
+    get: new GetReimbursement(reimbursementRepo),
+    getByExpense: new GetReimbursementByExpense(reimbursementRepo),
+    listUnpaid: new ListUnpaidReimbursables(reimbursementRepo),
+    markPaid: new MarkAsPaid(reimbursementRepo, eventBus),
+    markPending: new MarkAsPending(reimbursementRepo, eventBus),
+    markEarly: new MarkAsEarly(reimbursementRepo, eventBus),
+    markUnpaid: new MarkAsUnpaid(reimbursementRepo, eventBus),
+    markNonReimbursable: new MarkAsNonReimbursable(reimbursementRepo, eventBus),
+  });
+
+  // Auto-create / cleanup Reimbursement on Expense lifecycle.
+  const createReimbursementHandler = new CreateReimbursementOnExpenseRecorded(
+    reimbursementRepo,
+    reimbursementStatusKindLookup,
+    eventBus,
+  );
+  const deleteReimbursementHandler = new DeleteReimbursementOnExpenseDeleted(
+    reimbursementRepo,
+    eventBus,
+  );
+  const unsubscribers = [
+    eventBus.subscribe(ExpenseRecorded.type, (e) =>
+      createReimbursementHandler.handle(e as ExpenseRecorded),
+    ),
+    eventBus.subscribe(ExpenseDeleted.type, (e) =>
+      deleteReimbursementHandler.handle(e as ExpenseDeleted),
+    ),
+  ];
+
   return {
     eventBus,
     categoryController,
     methodController,
     reimbursementStatusController,
     expenseController,
+    reimbursementController,
     async shutdown() {
+      for (const unsubscribe of unsubscribers) unsubscribe();
       await prisma.$disconnect();
     },
   };
