@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Expense Tracker · v2.1 (date picker)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --color-ink: #0a0908;
+      --color-ink-2: #44403c;
+      --color-ink-3: #78716c;
+      --color-paper: #fafaf7;
+      --color-paper-2: #f2efe8;
+      --color-line: #e3ddd0;
+    }
+    body { font-family: var(--font-sans); background: #eeece5; color: var(--color-ink); }
+    /* Subtle grid backdrop, like the design canvas */
+    .canvas-bg {
+      background:
+        radial-gradient(circle at 1px 1px, rgba(0,0,0,0.05) 1px, transparent 0) 0 0 / 28px 28px,
+        #eeece5;
+    }
+    [data-screen-label]:focus-visible { outline: none }
+    /* Calendar grid: weekday row + 6 weeks of day cells, perfectly aligned */
+    .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 2px; }
+    .cal-cell {
+      display: flex; align-items: center; justify-content: center;
+      font-variant-numeric: tabular-nums;
+      border-radius: 8px;
+      transition: background .12s, color .12s, transform .08s;
+    }
+    .cal-cell:hover:not([data-disabled]):not([data-out]) { background: var(--color-paper-2); }
+    .cal-cell[data-out] { color: rgba(120,113,108,0.35); }
+    .cal-cell[data-today] { box-shadow: inset 0 0 0 1.5px var(--color-ink-2); }
+    .cal-cell[data-today][data-selected] { box-shadow: inset 0 0 0 1.5px transparent; }
+    .cal-cell[data-selected] { background: var(--color-ink); color: var(--color-paper); font-weight: 600; }
+    .cal-cell[data-selected]:hover { background: var(--color-ink); }
+    .cal-cell[data-in-range] { background: var(--color-paper-2); border-radius: 0; }
+    .cal-cell[data-range-start] { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+    .cal-cell[data-range-end] { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+    .cal-cell[data-focused]:not([data-selected]) {
+      box-shadow: inset 0 0 0 2px #c96442;
+    }
+    .cal-cell[data-weekend] { color: var(--color-ink-3); }
+    .cal-cell[data-selected][data-weekend] { color: var(--color-paper); }
+    /* Range-row continuous tint background — applied to the weekday row container so it flows */
+    .range-row { position: relative; }
+    /* Quick-jump chips */
+    .jump-chip {
+      font-size: 11px; padding: 4px 9px; border-radius: 999px;
+      border: 1px solid var(--color-line); background: white; color: var(--color-ink-2);
+      font-weight: 500; transition: background .12s, border-color .12s;
+    }
+    .jump-chip:hover { background: var(--color-paper-2); border-color: var(--color-ink-3); }
+    .jump-chip[aria-pressed="true"] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+    /* Preset sidebar buttons */
+    .preset-btn {
+      width: 100%; text-align: left; padding: 7px 10px; border-radius: 8px;
+      font-size: 12.5px; color: var(--color-ink-2); font-weight: 500;
+      transition: background .12s;
+    }
+    .preset-btn:hover { background: var(--color-paper-2); }
+    .preset-btn[aria-pressed="true"] { background: var(--color-paper-2); color: var(--color-ink); font-weight: 600; }
+    /* Kbd */
+    .kbd {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 22px; height: 22px; padding: 0 5px;
+      border: 1px solid var(--color-line); border-bottom-width: 2px;
+      border-radius: 4px; background: white;
+      font-family: var(--font-mono); font-size: 11px; color: var(--color-ink-2);
+    }
+    /* Annotation callouts */
+    .callout-pin {
+      width: 22px; height: 22px; border-radius: 999px; background: #c96442; color: white;
+      font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono);
+      box-shadow: 0 0 0 3px rgba(201,100,66,0.18);
+    }
+    .callout-line { background: #c96442; height: 1.5px; }
+    /* Sticky-headed section labels */
+    .sec-title {
+      font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      font-weight: 700; color: var(--color-ink-3);
+    }
+    .sec-h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; color: var(--color-ink); }
+    .sec-sub { font-size: 12.5px; color: var(--color-ink-3); line-height: 1.6; max-width: 56ch; }
+    /* Frame around an artboard */
+    .artboard {
+      background: white; border-radius: 16px;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 32px -16px rgba(0,0,0,0.16);
+    }
+    .artboard-label {
+      font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 600; color: rgba(60,50,40,0.7);
+      font-family: var(--font-mono);
+    }
+    .artboard-mono { font-family: var(--font-mono); font-size: 11px; color: rgba(60,50,40,0.7); }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+</head>
+<body class="canvas-bg">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react" src="date-picker.jsx"></script>
+<script type="text/babel" data-presets="react" src="app.jsx"></script>
+</body>
+</html>

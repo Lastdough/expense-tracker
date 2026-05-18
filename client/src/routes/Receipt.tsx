@@ -4,6 +4,15 @@ import { Download, FileText, Loader2, Printer } from 'lucide-react';
 import { ApiError } from '../api/http';
 import { reportingApi } from '../api/reporting';
 import type { ReceiptView } from '../api/types';
+import { BottomSheet, useIsMobile } from '../components/BottomSheet';
+import {
+  DatePicker,
+  RangeTrigger,
+  fromIso,
+  toIso,
+  type DateRange,
+} from '../components/DatePicker';
+import { Popover } from '../components/Popover';
 import { Toast, type ToastState } from '../components/Toast';
 import { formatMoney } from '../lib/money';
 
@@ -145,24 +154,14 @@ export default function Receipt() {
         {/* Builder column */}
         <aside className="md:border-r border-line md:overflow-y-auto px-5 md:px-6 py-5 flex flex-col gap-5 bg-paper-2/60">
           <Section label="Date range">
-            <div className="grid grid-cols-2 gap-2">
-              <FieldInline label="From">
-                <input
-                  type="date"
-                  value={dateStart}
-                  onChange={(e) => setDateStart(e.target.value)}
-                  className="builder-input"
-                />
-              </FieldInline>
-              <FieldInline label="To">
-                <input
-                  type="date"
-                  value={dateEnd}
-                  onChange={(e) => setDateEnd(e.target.value)}
-                  className="builder-input"
-                />
-              </FieldInline>
-            </div>
+            <ReceiptRangeField
+              start={dateStart}
+              end={dateEnd}
+              onChange={(next) => {
+                if (next.start) setDateStart(toIso(next.start));
+                if (next.end) setDateEnd(toIso(next.end));
+              }}
+            />
           </Section>
 
           <button
@@ -286,5 +285,51 @@ function FieldInline({ label, children }: { readonly label: string; readonly chi
       <span className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold">{label}</span>
       {children}
     </label>
+  );
+}
+
+function ReceiptRangeField({
+  start,
+  end,
+  onChange,
+}: {
+  readonly start: string;
+  readonly end: string;
+  readonly onChange: (next: DateRange) => void;
+}) {
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const mobile = useIsMobile();
+  const range: DateRange = { start: fromIso(start), end: fromIso(end) };
+
+  const handleCommit = (next: DateRange) => {
+    onChange(next);
+    if (next.start && next.end) setOpen(false);
+  };
+
+  const picker = (
+    <DatePicker
+      mode="range"
+      value={range}
+      onChange={handleCommit}
+      presets={mobile ? 'topbar' : 'sidebar'}
+      showFooter={!mobile}
+      inSheet={mobile}
+    />
+  );
+
+  return (
+    <div ref={anchorRef} className="relative">
+      <RangeTrigger range={range} open={open} onClick={() => setOpen((v) => !v)} />
+      {mobile ? (
+        <BottomSheet open={open} onClose={() => setOpen(false)} title="Date range">
+          {picker}
+        </BottomSheet>
+      ) : (
+        <Popover open={open} anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          {picker}
+        </Popover>
+      )}
+    </div>
   );
 }

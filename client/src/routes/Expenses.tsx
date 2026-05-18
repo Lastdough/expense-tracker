@@ -12,7 +12,16 @@ import type {
   MethodView,
   ReimbursementStatusView,
 } from '../api/types';
+import { BottomSheet, useIsMobile } from '../components/BottomSheet';
 import { Chip } from '../components/Chip';
+import {
+  DatePicker,
+  DateTrigger,
+  fromIso,
+  smartLabel,
+  toIso,
+} from '../components/DatePicker';
+import { Popover } from '../components/Popover';
 import { Toast, type ToastState } from '../components/Toast';
 import { formatMoney } from '../lib/money';
 
@@ -475,22 +484,11 @@ function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }
       className={`${open ? 'block' : 'hidden'} border-b border-line bg-paper-2/40 px-5 md:px-8 py-4 flex-shrink-0`}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <FieldWrap label="From">
-          <input
-            type="date"
-            value={filters.dateStart}
-            onChange={(e) => onChange({ dateStart: e.target.value })}
-            className="filter-input"
-          />
-        </FieldWrap>
-        <FieldWrap label="To">
-          <input
-            type="date"
-            value={filters.dateEnd}
-            onChange={(e) => onChange({ dateEnd: e.target.value })}
-            className="filter-input"
-          />
-        </FieldWrap>
+        <FilterDateRange
+          start={filters.dateStart}
+          end={filters.dateEnd}
+          onChange={(next) => onChange(next)}
+        />
         <FieldWrap label="Search">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
@@ -499,7 +497,8 @@ function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
               placeholder="Description…"
-              className="filter-input pl-8"
+              className="filter-input"
+              style={{ paddingLeft: '2rem' }}
             />
           </div>
         </FieldWrap>
@@ -552,6 +551,86 @@ function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }
           box-shadow: 0 0 0 2px rgb(10 9 8 / 0.1);
         }
       `}</style>
+    </div>
+  );
+}
+
+function FilterDateRange({
+  start,
+  end,
+  onChange,
+}: {
+  readonly start: string;
+  readonly end: string;
+  readonly onChange: (next: { dateStart?: string; dateEnd?: string }) => void;
+}) {
+  return (
+    <>
+      <SingleDateField
+        label="From"
+        value={start}
+        placeholder="Any start"
+        onChange={(v) => onChange({ dateStart: v })}
+      />
+      <SingleDateField
+        label="To"
+        value={end}
+        placeholder="Any end"
+        onChange={(v) => onChange({ dateEnd: v })}
+      />
+    </>
+  );
+}
+
+function SingleDateField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly onChange: (next: string) => void;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const mobile = useIsMobile();
+  const dateObj = fromIso(value);
+  const commit = (d: Date) => {
+    onChange(toIso(d));
+    setOpen(false);
+  };
+  const picker = (
+    <DatePicker
+      mode="single"
+      value={dateObj}
+      onChange={commit}
+      showFooter={!mobile}
+      inSheet={mobile}
+    />
+  );
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold">{label}</span>
+      <div ref={wrapRef} className="relative">
+        <DateTrigger
+          value={dateObj ? smartLabel(dateObj) : null}
+          open={open}
+          onClick={() => setOpen((v) => !v)}
+          variant="md"
+          placeholder={placeholder}
+        />
+      </div>
+      {mobile ? (
+        <BottomSheet open={open} onClose={() => setOpen(false)} title={`${label} date`}>
+          {picker}
+        </BottomSheet>
+      ) : (
+        <Popover open={open} anchorRef={wrapRef} onClose={() => setOpen(false)}>
+          {picker}
+        </Popover>
+      )}
     </div>
   );
 }
