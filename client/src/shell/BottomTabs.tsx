@@ -8,7 +8,7 @@ interface BottomTabsProps {
 export function BottomTabs({ className = '' }: BottomTabsProps) {
   return (
     <nav
-      className={`fixed bottom-0 inset-x-0 z-20 border-t border-line bg-paper grid grid-cols-5 ${className}`}
+      className={`fixed bottom-0 inset-x-0 z-20 border-t border-line bg-paper grid grid-cols-6 ${className}`}
     >
       {NAV.map((n) => (
         <NavLink

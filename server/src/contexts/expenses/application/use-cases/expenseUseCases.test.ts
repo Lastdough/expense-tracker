@@ -133,6 +133,9 @@ class FakeExpenseRepo implements IExpenseRepository {
   async save(e: Expense): Promise<void> {
     this.rows.set(e.id, e);
   }
+  async saveMany(es: readonly Expense[]): Promise<void> {
+    for (const e of es) this.rows.set(e.id, e);
+  }
   async delete(id: ExpenseId): Promise<void> {
     this.rows.delete(id);
   }
