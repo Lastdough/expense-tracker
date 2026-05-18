@@ -17,7 +17,10 @@ import { ShowArchivedToggle } from './ShowArchivedToggle';
 
 type ColorTarget = 'bg' | 'text';
 
-const GRID = 'grid-cols-[28px_minmax(0,1fr)_minmax(0,1.6fr)_120px_120px_64px_120px]';
+// Column proportions lifted from Claude Design v2.0 (lines 734, 761):
+// drag · preview · name · bg · fg · order · action
+const GRID =
+  'grid-cols-[28px_minmax(0,1.4fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_64px_40px]';
 
 export function ReferenceTable<T extends ReferenceView>({
   items,

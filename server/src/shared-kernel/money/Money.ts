@@ -136,27 +136,6 @@ export class Money {
     return (negative ? '-' : '') + whole + '.' + fraction;
   }
 
-  /** Human-readable formatted string with currency symbol and thousand separators. */
-  format(): string {
-    const meta = CURRENCIES[this._currency];
-    const negative = this._amount < 0n;
-    const abs = negative ? -this._amount : this._amount;
-    const str = abs.toString();
-    let whole: string;
-    let fraction: string;
-    if (meta.minorUnits === 0) {
-      whole = str;
-      fraction = '';
-    } else {
-      const padded = str.padStart(meta.minorUnits + 1, '0');
-      whole = padded.slice(0, -meta.minorUnits);
-      fraction = padded.slice(-meta.minorUnits);
-    }
-    const wholeWithCommas = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const body = fraction ? `${wholeWithCommas}.${fraction}` : wholeWithCommas;
-    return `${negative ? '-' : ''}${meta.symbol} ${body}`;
-  }
-
   toString(): string {
     return `Money(${this.toMajor()} ${this._currency})`;
   }

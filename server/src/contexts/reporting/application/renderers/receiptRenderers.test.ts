@@ -70,12 +70,14 @@ describe('renderReceiptHtml', () => {
   it('shows the grand total in the printable layout', () => {
     const html = renderReceiptHtml(SAMPLE);
     expect(html).toContain('Amount currently owed to you');
-    expect(html).toContain('Rp 800,000');
+    // Match `Rp` + locale whitespace + Indonesian thousands. Whitespace is a
+    // regex `\s` so an NBSP from Intl doesn't trip the assertion.
+    expect(html).toMatch(/Rp\s*800\.000/);
   });
 
   it('marks early-only contributions with the negative sign and class', () => {
     const html = renderReceiptHtml(SAMPLE);
-    expect(html).toContain('class="num neg">−Rp 500,000');
+    expect(html).toMatch(/class="num neg">−Rp\s*500\.000/);
   });
 });
 

@@ -14,27 +14,22 @@ export function BottomTabs({ className = '' }: BottomTabsProps) {
         <NavLink
           key={n.to}
           to={n.to}
-          className={({ isActive }) =>
-            [
-              'py-2 pb-3 flex flex-col items-center gap-[3px] transition',
-              isActive ? 'text-ink' : 'text-ink-3',
-            ].join(' ')
-          }
+          className="py-2 pb-3 flex flex-col items-center gap-[3px] transition"
         >
           {({ isActive }) => (
             <>
               <span
                 className={[
-                  'w-9 h-7 flex items-center justify-center rounded-full',
-                  isActive ? 'bg-ink text-paper' : '',
+                  'w-9 h-7 flex items-center justify-center rounded-full transition',
+                  isActive ? 'bg-ink text-paper' : 'text-ink-3',
                 ].join(' ')}
               >
-                <n.icon size={16} aria-hidden />
+                <n.icon size={n.to === '/quick-add' ? 17 : 16} aria-hidden />
               </span>
               <span
                 className={[
                   'text-[10px] tracking-wide',
-                  isActive ? 'font-semibold' : 'font-medium',
+                  isActive ? 'text-ink font-semibold' : 'text-ink-3 font-medium',
                 ].join(' ')}
               >
                 {n.shortLabel}

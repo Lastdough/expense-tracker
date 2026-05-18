@@ -182,33 +182,6 @@ describe('Money', () => {
     });
   });
 
-  describe('format', () => {
-    it('IDR uses no decimal places and Rp symbol', () => {
-      expect(Money.fromMinor(100000n, 'IDR').format()).toBe('Rp 100,000');
-      expect(Money.fromMinor(1234567n, 'IDR').format()).toBe('Rp 1,234,567');
-    });
-
-    it('USD uses two decimal places and $ symbol', () => {
-      expect(Money.fromMinor(150n, 'USD').format()).toBe('$ 1.50');
-      expect(Money.fromMinor(123456n, 'USD').format()).toBe('$ 1,234.56');
-      expect(Money.fromMinor(5n, 'USD').format()).toBe('$ 0.05');
-    });
-
-    it('JPY uses no decimal places', () => {
-      expect(Money.fromMinor(1000n, 'JPY').format()).toBe('¥ 1,000');
-    });
-
-    it('negative amounts show minus before symbol', () => {
-      expect(Money.fromMinor(-150n, 'USD').format()).toBe('-$ 1.50');
-      expect(Money.fromMinor(-100000n, 'IDR').format()).toBe('-Rp 100,000');
-    });
-
-    it('zero formats with appropriate precision', () => {
-      expect(Money.zero('IDR').format()).toBe('Rp 0');
-      expect(Money.zero('USD').format()).toBe('$ 0.00');
-    });
-  });
-
   describe('toMajor', () => {
     it('round-trips fromMajor / toMajor for typical values', () => {
       expect(Money.fromMajor('1234.56', 'USD').toMajor()).toBe('1234.56');

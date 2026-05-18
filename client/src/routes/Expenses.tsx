@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Filter, Loader2, Search } from 'lucide-react';
+import { Filter, Loader2, Plus, Search } from 'lucide-react';
 
 import { categoriesApi, methodsApi, statusesApi } from '../api/categorization';
 import { expensesApi } from '../api/expenses';
@@ -14,6 +14,7 @@ import type {
 } from '../api/types';
 import { Chip } from '../components/Chip';
 import { Toast, type ToastState } from '../components/Toast';
+import { formatMoney } from '../lib/money';
 
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -41,10 +42,26 @@ function ymdToLocalIso(ymd: string, endOfDay: boolean): string {
   return localDate.toISOString();
 }
 
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return `${DOW_SHORT[d.getDay()]} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+}
+function longDate(iso: string): string {
+  const d = new Date(iso);
+  return `${DOW_SHORT[d.getDay()]}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+function localYmdFromIso(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 interface Filters {
-  readonly dateStart: string; // YYYY-MM-DD
+  readonly dateStart: string;
   readonly dateEnd: string;
-  readonly categoryId: string; // id or ALL
+  readonly categoryId: string;
   readonly methodId: string;
   readonly statusId: string;
   readonly q: string;
@@ -104,6 +121,8 @@ interface RefData {
   readonly statuses: ReadonlyArray<ReimbursementStatusView>;
 }
 
+const TABLE_GRID = '110px minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 130px';
+
 export default function Expenses() {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => filtersFromParams(params), [params]);
@@ -130,9 +149,6 @@ export default function Expenses() {
     [filters, setParams],
   );
 
-  // Debounced search input — typed value lives in `qInput`; commits to URL +
-  // refetch after 300ms idle. A ref tracks the last committed q so we can skip
-  // the timeout when the change came from elsewhere (URL nav, reset).
   const [qInput, setQInput] = useState(filters.q);
   const lastCommittedQ = useRef(filters.q);
   useEffect(() => {
@@ -150,7 +166,6 @@ export default function Expenses() {
     return () => clearTimeout(t);
   }, [qInput, updateFilters]);
 
-  // Reference data — one-shot.
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -171,7 +186,6 @@ export default function Expenses() {
     };
   }, [showToast]);
 
-  // Refetch whenever filters change.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -210,25 +224,60 @@ export default function Expenses() {
   const hasMore = items.length < total;
 
   return (
-    <div className="min-h-full px-4 py-5 md:px-8 md:py-8">
+    <div className="min-h-full flex flex-col">
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
-      <header className="mb-4 md:mb-6 flex items-end justify-between gap-3">
+      {/* Header */}
+      <header className="px-5 md:px-8 pt-5 md:pt-6 pb-4 md:pb-5 border-b border-line flex items-baseline justify-between gap-3 flex-shrink-0">
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">
-            History
+          <div className="text-[11px] md:text-[11.5px] uppercase tracking-wider text-ink-3 font-semibold">
+            Expenses
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mt-0.5">Expenses</h1>
+          <h1 className="text-[22px] md:text-[28px] font-bold tracking-tight mt-0.5">
+            All expenses
+          </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((o) => !o)}
-          className="md:hidden flex items-center gap-1.5 px-3 py-2 rounded-lg border border-stone-300 text-[13px] font-medium hover:bg-stone-50"
-        >
-          <Filter size={14} />
-          Filters
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-full border border-line text-ink-2 hover:bg-paper-2"
+            aria-label="Filters"
+          >
+            <Filter size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-white text-[12.5px] font-medium text-ink-2 hover:border-ink-3"
+          >
+            <Filter size={13} />
+            {filtersOpen ? 'Hide filters' : 'Filters'}
+          </button>
+          <Link
+            to="/quick-add"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink text-paper text-[12.5px] font-semibold hover:bg-ink-2"
+          >
+            <Plus size={13} />
+            New
+          </Link>
+        </div>
       </header>
+
+      {/* Summary row */}
+      <div className="px-5 md:px-8 py-2.5 md:py-3 border-b border-line bg-paper-2/60 flex items-center gap-3 md:gap-5 text-[12px] flex-shrink-0">
+        <div>
+          <span className="text-ink-3">
+            {loading ? 'Loading…' : `${total} expense${total === 1 ? '' : 's'}`}
+          </span>
+          {!loading && items.length < total && (
+            <>
+              <span className="mx-2 text-ink-3/60">·</span>
+              <span className="text-ink-3">showing {items.length}</span>
+            </>
+          )}
+        </div>
+      </div>
 
       <FilterBar
         filters={filters}
@@ -240,31 +289,46 @@ export default function Expenses() {
         onReset={() => setParams(new URLSearchParams(), { replace: true })}
       />
 
-      <div className="mt-4 md:mt-6">
+      {/* Body */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-stone-400" size={20} />
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="animate-spin text-ink-3" size={20} />
           </div>
         ) : items.length === 0 ? (
-          <div className="text-center py-12 text-stone-500">
-            <div className="text-[14px]">No expenses match these filters.</div>
-            <Link to="/quick-add" className="inline-block mt-3 text-stone-900 underline text-[13px]">
-              Add an expense
-            </Link>
-          </div>
+          <EmptyState onReset={() => setParams(new URLSearchParams(), { replace: true })} />
         ) : (
           <>
-            <div className="text-[12px] text-stone-500 mb-2">
-              Showing {items.length} of {total}
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <div
+                className="grid px-8 py-2 text-[10.5px] uppercase tracking-wider text-ink-3 font-semibold border-b border-line sticky top-0 z-10 bg-paper"
+                style={{ gridTemplateColumns: TABLE_GRID }}
+              >
+                <div>Date</div>
+                <div>Description</div>
+                <div>Category</div>
+                <div>Method</div>
+                <div>Status</div>
+                <div className="text-right">Amount</div>
+              </div>
+              {items.map((e) => (
+                <DesktopRow key={e.id} expense={e} refs={refs} />
+              ))}
             </div>
-            <ExpenseList items={items} refs={refs} />
+
+            {/* Mobile grouped-by-day */}
+            <div className="md:hidden">
+              <MobileGrouped items={items} refs={refs} />
+            </div>
+
             {hasMore && (
-              <div className="mt-4 flex justify-center">
+              <div className="py-5 flex justify-center">
                 <button
                   type="button"
                   onClick={() => void loadMore()}
                   disabled={loadingMore}
-                  className="px-4 py-2 rounded-lg border border-stone-300 text-[13px] font-medium hover:bg-stone-50 disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg border border-line text-[13px] font-medium hover:bg-paper-2 disabled:opacity-50"
                 >
                   {loadingMore ? 'Loading…' : 'Load more'}
                 </button>
@@ -272,6 +336,124 @@ export default function Expenses() {
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function DesktopRow({
+  expense: e,
+  refs,
+}: {
+  readonly expense: ExpenseView;
+  readonly refs: RefData | null;
+}) {
+  return (
+    <Link
+      to={`/expenses/${e.id}`}
+      className="grid items-center px-8 py-2.5 border-b border-line/60 text-[13px] hover:bg-paper-2/60 transition"
+      style={{ gridTemplateColumns: TABLE_GRID }}
+    >
+      <div className="text-ink-3 font-mono text-[12px]">{shortDate(e.transactionDate)}</div>
+      <div className="font-medium text-ink truncate pr-3">{e.description}</div>
+      <div>
+        <RefChip refs={refs} kind="category" id={e.categoryId} />
+      </div>
+      <div>
+        <RefChip refs={refs} kind="method" id={e.methodId} />
+      </div>
+      <div>
+        <RefChip refs={refs} kind="status" id={e.reimbursementStatusId} />
+      </div>
+      <div className="text-right font-mono font-semibold tabular-nums">
+        {formatMoney({ amountMinor: e.amountMinor, currency: e.currency })}
+      </div>
+    </Link>
+  );
+}
+
+function MobileGrouped({
+  items,
+  refs,
+}: {
+  readonly items: ReadonlyArray<ExpenseView>;
+  readonly refs: RefData | null;
+}) {
+  // Group by local YYYY-MM-DD derived from the transaction date.
+  const groups = useMemo(() => {
+    const m = new Map<string, ExpenseView[]>();
+    for (const e of items) {
+      const key = localYmdFromIso(e.transactionDate);
+      const arr = m.get(key) ?? [];
+      arr.push(e);
+      m.set(key, arr);
+    }
+    return Array.from(m.entries()); // preserves insertion order (server sorts desc)
+  }, [items]);
+
+  return (
+    <div>
+      {groups.map(([ymd, rows]) => {
+        const dayTotalMinor = rows.reduce((acc, e) => acc + BigInt(e.amountMinor), 0n);
+        const currency = rows[0]?.currency ?? 'IDR';
+        return (
+          <div key={ymd}>
+            <div className="px-5 pt-4 pb-1.5 flex items-baseline justify-between">
+              <div className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold">
+                {longDate(`${ymd}T00:00:00`)}
+              </div>
+              <div className="text-[11px] font-mono text-ink-3 tabular-nums">
+                {formatMoney({ amountMinor: dayTotalMinor.toString(), currency })}
+              </div>
+            </div>
+            <div className="px-3 flex flex-col gap-1">
+              {rows.map((e) => (
+                <Link
+                  key={e.id}
+                  to={`/expenses/${e.id}`}
+                  className="w-full text-left px-2.5 py-2.5 rounded-xl hover:bg-paper-2 active:bg-paper-2 transition"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-medium text-ink truncate">
+                        {e.description}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <RefChip refs={refs} kind="category" id={e.categoryId} />
+                        <RefChip refs={refs} kind="method" id={e.methodId} />
+                        <RefChip refs={refs} kind="status" id={e.reimbursementStatusId} />
+                      </div>
+                    </div>
+                    <div className="font-mono text-[14px] font-semibold tabular-nums whitespace-nowrap">
+                      {formatMoney({ amountMinor: e.amountMinor, currency: e.currency })}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyState({ onReset }: { readonly onReset: () => void }) {
+  return (
+    <div className="text-center py-16 px-6">
+      <div className="text-[14px] text-ink-3">No expenses match these filters.</div>
+      <div className="mt-3 flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-[13px] text-ink-2 underline hover:text-ink"
+        >
+          Reset filters
+        </button>
+        <span className="text-ink-3/60">·</span>
+        <Link to="/quick-add" className="text-[13px] text-ink underline hover:text-ink-2">
+          Add an expense
+        </Link>
       </div>
     </div>
   );
@@ -289,7 +471,9 @@ interface FilterBarProps {
 
 function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }: FilterBarProps) {
   return (
-    <div className={`${open ? 'block' : 'hidden'} md:block bg-paper-2 rounded-lg p-3 md:p-4`}>
+    <div
+      className={`${open ? 'block' : 'hidden'} border-b border-line bg-paper-2/40 px-5 md:px-8 py-4 flex-shrink-0`}
+    >
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <FieldWrap label="From">
           <input
@@ -309,7 +493,7 @@ function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }
         </FieldWrap>
         <FieldWrap label="Search">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
             <input
               type="text"
               value={qInput}
@@ -348,7 +532,7 @@ function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }
         <button
           type="button"
           onClick={onReset}
-          className="text-[12px] text-stone-500 hover:text-stone-900 underline"
+          className="text-[12px] text-ink-3 hover:text-ink underline"
         >
           Reset filters
         </button>
@@ -358,7 +542,7 @@ function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }
           width: 100%;
           padding: 0.5rem 0.875rem;
           border-radius: 0.5rem;
-          border: 1px solid #d6d3d1;
+          border: 1px solid #e3ddd0;
           background: white;
           font-size: 13px;
           outline: none;
@@ -375,9 +559,7 @@ function FilterBar({ filters, refs, qInput, setQInput, onChange, open, onReset }
 function FieldWrap({ label, children }: { readonly label: string; readonly children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">
-        {label}
-      </span>
+      <span className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold">{label}</span>
       {children}
     </label>
   );
@@ -401,11 +583,7 @@ function FilterSelect({
   readonly allLabel: string;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="filter-input"
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="filter-input">
       <option value={ALL}>{allLabel}</option>
       {options
         .filter((o) => !o.isArchived || o.id === value)
@@ -416,47 +594,6 @@ function FilterSelect({
           </option>
         ))}
     </select>
-  );
-}
-
-function ExpenseList({
-  items,
-  refs,
-}: {
-  readonly items: ReadonlyArray<ExpenseView>;
-  readonly refs: RefData | null;
-}) {
-  return (
-    <ul className="flex flex-col divide-y divide-line">
-      {items.map((e) => (
-        <li key={e.id}>
-          <Link
-            to={`/expenses/${e.id}`}
-            className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 py-3 hover:bg-paper-2 px-2 -mx-2 rounded-md transition-colors"
-          >
-            <div className="flex items-center justify-between md:w-40 shrink-0">
-              <div className="text-[12px] text-stone-500 tabular-nums">
-                {formatTransactionDate(e.transactionDate)}
-              </div>
-              <div className="md:hidden text-[14px] font-semibold tabular-nums">
-                {e.amountFormatted}
-              </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[14px] font-medium truncate">{e.description}</div>
-              <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                <RefChip refs={refs} kind="category" id={e.categoryId} />
-                <RefChip refs={refs} kind="method" id={e.methodId} />
-                <RefChip refs={refs} kind="status" id={e.reimbursementStatusId} />
-              </div>
-            </div>
-            <div className="hidden md:block text-[14px] font-semibold tabular-nums w-32 text-right">
-              {e.amountFormatted}
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -475,9 +612,4 @@ function RefChip({
   const found = pool.find((p) => p.id === id);
   if (!found) return null;
   return <Chip token={found} size="sm" />;
-}
-
-function formatTransactionDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
 }

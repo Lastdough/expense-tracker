@@ -25,7 +25,7 @@ function shiftMonth(month: string, by: number): string {
 function monthBounds(month: string): { startIso: string; endIso: string } {
   const [y, m] = month.split('-').map(Number);
   const start = new Date(y ?? 1970, (m ?? 1) - 1, 1, 0, 0, 0, 0);
-  const end = new Date(y ?? 1970, m ?? 1, 0, 23, 59, 59, 999); // last day of month
+  const end = new Date(y ?? 1970, m ?? 1, 0, 23, 59, 59, 999);
   return { startIso: start.toISOString(), endIso: end.toISOString() };
 }
 function monthLabel(month: string): string {
@@ -73,32 +73,35 @@ export default function Dashboard() {
   }, [month]);
 
   return (
-    <div className="min-h-full px-4 py-5 md:px-8 md:py-8">
+    <div className="min-h-full flex flex-col">
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
-      <header className="mb-5 flex items-center justify-between gap-3">
+      {/* Header */}
+      <header className="px-5 md:px-8 pt-5 md:pt-6 pb-4 md:pb-5 border-b border-line flex items-baseline justify-between gap-3 flex-shrink-0">
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">
+          <div className="text-[11px] md:text-[11.5px] uppercase tracking-wider text-ink-3 font-semibold">
             Insights
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mt-0.5">Dashboard</h1>
+          <h1 className="text-[22px] md:text-[28px] font-bold tracking-tight mt-0.5">
+            Dashboard
+          </h1>
         </div>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setMonth((m) => shiftMonth(m, -1))}
-            className="p-2 rounded-lg border border-stone-300 hover:bg-stone-50"
+            className="p-2 rounded-lg border border-line hover:bg-paper-2"
             aria-label="Previous month"
           >
             <ChevronLeft size={16} />
           </button>
-          <div className="px-3 py-2 text-[13px] font-semibold min-w-32 text-center tabular-nums">
+          <div className="px-3 py-2 text-[13px] font-semibold min-w-[8.5rem] text-center tabular-nums">
             {monthLabel(month)}
           </div>
           <button
             type="button"
             onClick={() => setMonth((m) => shiftMonth(m, 1))}
-            className="p-2 rounded-lg border border-stone-300 hover:bg-stone-50"
+            className="p-2 rounded-lg border border-line hover:bg-paper-2"
             aria-label="Next month"
           >
             <ChevronRight size={16} />
@@ -106,63 +109,161 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-stone-400" size={20} />
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="animate-spin text-ink-3" size={20} />
+          </div>
+        ) : (
+          <>
+            <Hero summary={summary} />
+            <div className="px-5 md:px-10 py-5 md:py-6 grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+              <AvailableBudgetTile available={available} />
+              <NetOwedTile netOwed={netOwed} />
+              <ThisMonthTile summary={summary} />
+            </div>
+            <div className="px-5 md:px-10 pb-8 md:pb-10">
+              <BreakdownCard
+                title="By method"
+                rows={(summary?.byMethod ?? []).map((r) => ({
+                  id: r.methodId,
+                  name: r.methodName,
+                  bgColor: r.bgColor,
+                  textColor: r.textColor,
+                  amountMinor: r.amountMinor,
+                  count: r.count,
+                }))}
+                currency={summary?.currency ?? null}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Hero({ summary }: { readonly summary: MonthlySummaryView | null }) {
+  if (!summary || !summary.total || !summary.currency) {
+    return (
+      <div
+        className="px-5 md:px-10 pt-6 md:pt-10 pb-6 md:pb-8"
+        style={{ background: 'linear-gradient(180deg, #f2efe8 0%, #fafaf7 100%)' }}
+      >
+        <div className="text-[11px] md:text-[11.5px] uppercase tracking-wider text-ink-3 font-semibold">
+          This month
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <TotalTile summary={summary} />
-          <AvailableBudgetTile available={available} />
-          <NetOwedTile netOwed={netOwed} />
-          <BreakdownTile
-            title="By category"
-            rows={(summary?.byCategory ?? []).map((r) => ({
-              id: r.categoryId,
-              name: r.categoryName,
-              bgColor: r.bgColor,
-              textColor: r.textColor,
-              amountMinor: r.amountMinor,
-              count: r.count,
-            }))}
-            currency={summary?.currency ?? null}
-          />
-          <BreakdownTile
-            title="By method"
-            rows={(summary?.byMethod ?? []).map((r) => ({
-              id: r.methodId,
-              name: r.methodName,
-              bgColor: r.bgColor,
-              textColor: r.textColor,
-              amountMinor: r.amountMinor,
-              count: r.count,
-            }))}
-            currency={summary?.currency ?? null}
-          />
+        <div className="mt-2 text-[14px] text-ink-3">No expenses this month yet.</div>
+        <Link
+          to="/quick-add"
+          className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-lg bg-ink text-paper text-[12.5px] font-semibold hover:bg-ink-2"
+        >
+          Record one
+        </Link>
+      </div>
+    );
+  }
+
+  const totalRupiah = formatMoney({
+    amountMinor: summary.total.amountMinor,
+    currency: summary.currency,
+  }).replace(/^Rp\s*/, '');
+
+  const byCat = summary.byCategory.filter((c) => BigInt(c.amountMinor) > 0n);
+  const totalMinor = byCat.reduce((acc, c) => acc + BigInt(c.amountMinor), 0n);
+
+  return (
+    <div
+      className="px-5 md:px-10 pt-6 md:pt-10 pb-6 md:pb-8"
+      style={{ background: 'linear-gradient(180deg, #f2efe8 0%, #fafaf7 100%)' }}
+    >
+      <div className="text-[11px] md:text-[11.5px] uppercase tracking-wider text-ink-3 font-semibold">
+        This month
+      </div>
+      <div className="flex items-baseline gap-2 md:gap-3 mt-1">
+        <span className="font-mono text-[16px] md:text-[20px] text-ink-3">Rp</span>
+        <span className="font-mono text-[44px] md:text-[80px] font-bold tracking-[-0.02em] leading-none tabular-nums">
+          {totalRupiah}
+        </span>
+      </div>
+      <div className="mt-2 text-[12.5px] md:text-[13px] text-ink-2">
+        across{' '}
+        <b className="text-ink">
+          {summary.expenseCount} expense{summary.expenseCount === 1 ? '' : 's'}
+        </b>{' '}
+        in <b className="text-ink">{byCat.length} categor{byCat.length === 1 ? 'y' : 'ies'}</b>
+      </div>
+
+      {byCat.length > 0 && (
+        <div className="mt-4 md:mt-5">
+          <div className="flex rounded-md overflow-hidden h-2.5 md:h-3 border border-line">
+            {byCat.map((c) => (
+              <div
+                key={c.categoryId}
+                title={`${c.categoryName} · ${formatMoney({
+                  amountMinor: c.amountMinor,
+                  currency: summary.currency!,
+                })}`}
+                style={{
+                  background: c.bgColor,
+                  width: `${(Number(BigInt(c.amountMinor) * 1000n / (totalMinor === 0n ? 1n : totalMinor)) / 10).toFixed(2)}%`,
+                }}
+              />
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {byCat.map((c) => (
+              <div key={c.categoryId} className="inline-flex items-center gap-1.5 text-[11px]">
+                <Chip
+                  token={{ name: c.categoryName, bgColor: c.bgColor, textColor: c.textColor }}
+                  size="sm"
+                />
+                <span className="font-mono text-ink-2 tabular-nums">
+                  {formatMoney({ amountMinor: c.amountMinor, currency: summary.currency! })}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function TotalTile({ summary }: { readonly summary: MonthlySummaryView | null }) {
+function Tile({
+  title,
+  children,
+}: {
+  readonly title: string;
+  readonly children: React.ReactNode;
+}) {
   return (
-    <Tile title="This month">
-      {summary && summary.total && summary.currency ? (
-        <>
-          <div className="text-3xl font-bold tracking-tight tabular-nums">
-            {formatMoney({ amountMinor: summary.total.amountMinor, currency: summary.currency })}
-          </div>
-          <div className="text-[12px] text-stone-500 mt-1">
-            {summary.expenseCount} expense{summary.expenseCount === 1 ? '' : 's'}
-          </div>
-        </>
-      ) : (
-        <EmptyState
-          line="No expenses this month yet."
-          cta={{ to: '/quick-add', label: 'Add one' }}
+    <div className="rounded-2xl border border-line bg-white p-5">
+      <div className="text-[10.5px] uppercase tracking-wider text-ink-3 font-semibold">{title}</div>
+      <div className="mt-1">{children}</div>
+    </div>
+  );
+}
+
+function ThisMonthTile({ summary }: { readonly summary: MonthlySummaryView | null }) {
+  if (!summary || !summary.total || !summary.currency) {
+    return (
+      <Tile title="This month total">
+        <EmptyStateLine
+          line="No expenses yet."
+          cta={{ to: '/quick-add', label: 'Record one' }}
         />
-      )}
+      </Tile>
+    );
+  }
+  return (
+    <Tile title="This month total">
+      <div className="font-mono text-[24px] md:text-[26px] font-bold tracking-tight tabular-nums">
+        {formatMoney({ amountMinor: summary.total.amountMinor, currency: summary.currency })}
+      </div>
+      <div className="text-[11.5px] text-ink-3 mt-1">
+        {summary.expenseCount} expense{summary.expenseCount === 1 ? '' : 's'} recorded
+      </div>
     </Tile>
   );
 }
@@ -172,7 +273,7 @@ function AvailableBudgetTile({ available }: { readonly available: AvailableBudge
   if (!available || !hasBudget) {
     return (
       <Tile title="Available budget">
-        <EmptyState
+        <EmptyStateLine
           line="No monthly budget set."
           cta={{ to: '/settings?tab=budget', label: 'Set one' }}
         />
@@ -180,28 +281,30 @@ function AvailableBudgetTile({ available }: { readonly available: AvailableBudge
     );
   }
   const amount = available.availableBudget;
-  if (!amount || !available.currency) {
-    return <Tile title="Available budget">—</Tile>;
-  }
+  if (!amount || !available.currency) return <Tile title="Available budget">—</Tile>;
   const negative = amount.amountMinor.startsWith('-');
   return (
     <Tile title="Available budget">
       <div
         className={[
-          'text-3xl font-bold tracking-tight tabular-nums',
+          'font-mono text-[24px] md:text-[26px] font-bold tracking-tight tabular-nums',
           negative ? 'text-rose-700' : 'text-emerald-700',
         ].join(' ')}
       >
         {formatMoney({ amountMinor: amount.amountMinor, currency: available.currency })}
       </div>
-      <div className="text-[12px] text-stone-500 mt-1 tabular-nums">
-        budget {formatMoney({
+      <div className="text-[11.5px] text-ink-3 mt-1 tabular-nums">
+        budget{' '}
+        {formatMoney({
           amountMinor: available.monthlyBudget!.amountMinor,
           currency: available.currency,
         })}
         {' − owed '}
         {available.netOwed
-          ? formatMoney({ amountMinor: available.netOwed.amountMinor, currency: available.currency })
+          ? formatMoney({
+              amountMinor: available.netOwed.amountMinor,
+              currency: available.currency,
+            })
           : '0'}
       </div>
     </Tile>
@@ -212,7 +315,7 @@ function NetOwedTile({ netOwed }: { readonly netOwed: NetOwedView | null }) {
   if (!netOwed?.netOwed || !netOwed.currency) {
     return (
       <Tile title="Net owed">
-        <div className="text-[14px] text-stone-500">No reimbursable activity this month.</div>
+        <div className="text-[13px] text-ink-3">No reimbursable activity this month.</div>
       </Tile>
     );
   }
@@ -223,13 +326,13 @@ function NetOwedTile({ netOwed }: { readonly netOwed: NetOwedView | null }) {
     <Tile title="Net owed">
       <div
         className={[
-          'text-3xl font-bold tracking-tight tabular-nums',
-          negative ? 'text-rose-700' : 'text-stone-900',
+          'font-mono text-[24px] md:text-[26px] font-bold tracking-tight tabular-nums',
+          negative ? 'text-rose-700' : 'text-ink',
         ].join(' ')}
       >
         {formatMoney({ amountMinor: minor, currency: netOwed.currency })}
       </div>
-      <div className="text-[12px] text-stone-500 mt-1">{direction}</div>
+      <div className="text-[11.5px] text-ink-3 mt-1">{direction}</div>
     </Tile>
   );
 }
@@ -243,7 +346,7 @@ interface BreakdownRow {
   readonly count: number;
 }
 
-function BreakdownTile({
+function BreakdownCard({
   title,
   rows,
   currency,
@@ -252,72 +355,44 @@ function BreakdownTile({
   readonly rows: ReadonlyArray<BreakdownRow>;
   readonly currency: string | null;
 }) {
-  if (rows.length === 0 || !currency) {
-    return (
-      <Tile title={title}>
-        <div className="text-[14px] text-stone-500">No data this month.</div>
-      </Tile>
-    );
-  }
+  if (rows.length === 0 || !currency) return null;
   const max = rows.reduce((acc, r) => {
     const n = BigInt(r.amountMinor);
     return n > acc ? n : acc;
   }, 0n);
   return (
-    <Tile title={title} wide>
+    <div className="rounded-2xl border border-line bg-white p-5">
+      <div className="text-[10.5px] uppercase tracking-wider text-ink-3 font-semibold mb-3">
+        {title}
+      </div>
       <ul className="flex flex-col gap-2">
         {rows.map((r) => {
-          const width =
-            max === 0n ? 0 : Number((BigInt(r.amountMinor) * 1000n) / max) / 10;
+          const width = max === 0n ? 0 : Number((BigInt(r.amountMinor) * 1000n) / max) / 10;
           return (
             <li key={r.id} className="flex items-center gap-3">
-              <div className="w-32 shrink-0">
+              <div className="w-28 md:w-32 shrink-0">
                 <Chip token={r} size="sm" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="h-2 rounded-full bg-stone-100 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-paper-2 overflow-hidden">
                   <div
-                    className="h-full bg-stone-700"
-                    style={{ width: `${width}%` }}
+                    className="h-full rounded-full"
+                    style={{ background: r.bgColor, width: `${width}%` }}
                   />
                 </div>
               </div>
-              <div className="shrink-0 text-[12.5px] font-medium tabular-nums w-28 text-right">
+              <div className="shrink-0 text-[12px] font-medium tabular-nums w-24 md:w-28 text-right text-ink-2">
                 {formatMoney({ amountMinor: r.amountMinor, currency })}
               </div>
             </li>
           );
         })}
       </ul>
-    </Tile>
-  );
-}
-
-function Tile({
-  title,
-  children,
-  wide,
-}: {
-  readonly title: string;
-  readonly children: React.ReactNode;
-  readonly wide?: boolean;
-}) {
-  return (
-    <div
-      className={[
-        'bg-white rounded-xl border border-line p-5',
-        wide ? 'md:col-span-2 lg:col-span-3' : '',
-      ].join(' ')}
-    >
-      <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-2">
-        {title}
-      </div>
-      {children}
     </div>
   );
 }
 
-function EmptyState({
+function EmptyStateLine({
   line,
   cta,
 }: {
@@ -326,9 +401,9 @@ function EmptyState({
 }) {
   return (
     <div>
-      <div className="text-[14px] text-stone-500">{line}</div>
+      <div className="text-[13px] text-ink-3">{line}</div>
       {cta && (
-        <Link to={cta.to} className="inline-block mt-2 text-stone-900 underline text-[13px]">
+        <Link to={cta.to} className="inline-block mt-2 text-ink underline text-[12.5px]">
           {cta.label}
         </Link>
       )}

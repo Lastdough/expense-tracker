@@ -1,3 +1,4 @@
+import { formatMoney } from '../../../../shared-kernel/money/format.js';
 import { type Receipt } from '../../domain/value-objects/Receipt.js';
 
 const STYLE = `
@@ -36,9 +37,9 @@ export function renderReceiptHtml(receipt: Receipt): string {
               .map(
                 (line) => `<tr>
                   <td>${escapeHtml(line.description)}</td>
-                  <td class="num">${line.unpaidCount > 0 ? escapeHtml(line.unpaidTotal.format()) : '—'}</td>
-                  <td class="num ${line.earlyCount > 0 ? 'neg' : ''}">${line.earlyCount > 0 ? '−' + escapeHtml(line.earlyTotal.format()) : '—'}</td>
-                  <td class="num">${escapeHtml(line.total.format())}</td>
+                  <td class="num">${line.unpaidCount > 0 ? escapeHtml(formatMoney(line.unpaidTotal)) : '—'}</td>
+                  <td class="num ${line.earlyCount > 0 ? 'neg' : ''}">${line.earlyCount > 0 ? '−' + escapeHtml(formatMoney(line.earlyTotal)) : '—'}</td>
+                  <td class="num">${escapeHtml(formatMoney(line.total))}</td>
                 </tr>`,
               )
               .join('\n')}
@@ -46,7 +47,7 @@ export function renderReceiptHtml(receipt: Receipt): string {
               <td>Amount currently owed to you</td>
               <td></td>
               <td></td>
-              <td class="num">${receipt.grandTotal ? escapeHtml(receipt.grandTotal.format()) : '—'}</td>
+              <td class="num">${receipt.grandTotal ? escapeHtml(formatMoney(receipt.grandTotal)) : '—'}</td>
             </tr>
           </tbody>
         </table>`;

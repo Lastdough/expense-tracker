@@ -1,4 +1,5 @@
 import { type Currency } from '../../../../shared-kernel/money/Currency.js';
+import { formatMoney } from '../../../../shared-kernel/money/format.js';
 import { type Expense } from '../../domain/entities/Expense.js';
 import { type ListExpensesOutput } from '../use-cases/ListExpenses.js';
 
@@ -35,7 +36,7 @@ export function serializeExpense(e: Expense): ExpenseView {
     id: e.id,
     transactionDate: e.transactionDate.toISOString(),
     amountMinor: e.amount.amount.toString(),
-    amountFormatted: e.amount.format(),
+    amountFormatted: formatMoney(e.amount),
     currency: e.amount.currency,
     rawInput: e.rawInput,
     description: e.description,

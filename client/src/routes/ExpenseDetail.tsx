@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2, X } from 'lucide-react';
 
 import { categoriesApi, methodsApi, statusesApi } from '../api/categorization';
 import { expensesApi } from '../api/expenses';
@@ -18,6 +18,13 @@ import type {
 import { Chip } from '../components/Chip';
 import { ReferenceSelect } from '../components/ReferenceSelect';
 import { Toast, type ToastState } from '../components/Toast';
+import {
+  extractRawAmount,
+  formatAmountInput,
+  formatMajor,
+  minorToDecimalString,
+} from '../lib/money';
+import { useFormattedAmount } from '../lib/useFormattedAmount';
 
 interface RefData {
   readonly categories: ReadonlyArray<CategoryView>;
@@ -26,21 +33,26 @@ interface RefData {
 }
 
 interface FormState {
-  readonly amountInput: string; // free-text; if user edits, sent as amountInput
+  readonly amountInput: string;
   readonly amountTouched: boolean;
   readonly description: string;
   readonly categoryId: string;
   readonly methodId: string;
   readonly reimbursementStatusId: string;
-  readonly date: string; // YYYY-MM-DD
+  readonly date: string;
+}
+
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function longDate(iso: string): string {
+  const d = new Date(iso);
+  return `${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function isoToYmd(iso: string): string {
   const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function ymdToIso(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -49,7 +61,12 @@ function ymdToIso(ymd: string): string {
 }
 function buildInitialForm(e: ExpenseView): FormState {
   return {
-    amountInput: e.rawInput ?? e.amountFormatted,
+    // If the user typed a formula it stays editable. Otherwise show the value
+    // pre-formatted with locale separators (`100.000`), matching what the
+    // live-formatting input would display while the user edits. `extractRawAmount`
+    // turns it back to plain digits when we send to the server.
+    amountInput:
+      e.rawInput ?? formatAmountInput(minorToDecimalString(e.amountMinor, e.currency), e.currency),
     amountTouched: false,
     description: e.description,
     categoryId: e.categoryId,
@@ -81,7 +98,16 @@ export default function ExpenseDetail() {
     setToast({ id: toastIdRef.current, kind, message });
   }, []);
 
-  // Load everything in parallel.
+  // Live-formatted amount input. Must be called unconditionally per Rules of
+  // Hooks; safe when `form` is still null — `value` is empty and `onChange`
+  // bails because the setter guards on prev=null.
+  const amountInput = useFormattedAmount({
+    value: form?.amountInput ?? '',
+    onChange: (next: string) =>
+      setForm((prev) => (prev ? { ...prev, amountInput: next, amountTouched: true } : prev)),
+    currency: expense?.currency ?? 'IDR',
+  });
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -120,8 +146,14 @@ export default function ExpenseDetail() {
   const handleSave = async () => {
     if (!expense || !form || saving) return;
     const draft: { -readonly [K in keyof EditExpenseInput]: EditExpenseInput[K] } = {};
-    if (form.amountTouched && form.amountInput !== (expense.rawInput ?? '')) {
-      draft.amountInput = form.amountInput.trim();
+    if (form.amountTouched) {
+      // The form's value carries locale separators while the user edits; strip
+      // them before sending so the server's formula evaluator sees plain digits.
+      const formRaw = extractRawAmount(form.amountInput, expense.currency).trim();
+      const serverRaw = expense.rawInput ?? minorToDecimalString(expense.amountMinor, expense.currency);
+      if (formRaw !== serverRaw) {
+        draft.amountInput = formRaw;
+      }
     }
     if (form.description !== expense.description) draft.description = form.description.trim();
     if (form.categoryId !== expense.categoryId) draft.categoryId = form.categoryId;
@@ -168,14 +200,14 @@ export default function ExpenseDetail() {
       const r = await reimbursementsApi.getByExpense(id);
       setReimbursement(r);
     } catch {
-      /* no reimbursement is a valid state (NonReimbursable expense) */
+      /* no reimbursement is a valid state */
     }
   }, [id]);
 
   if (loading) {
     return (
       <div className="min-h-full flex items-center justify-center p-6">
-        <Loader2 className="animate-spin text-stone-400" size={20} />
+        <Loader2 className="animate-spin text-ink-3" size={20} />
       </div>
     );
   }
@@ -187,153 +219,202 @@ export default function ExpenseDetail() {
     );
   }
 
+  const currentCategory = refs.categories.find((c) => c.id === form.categoryId);
+  const currentMethod = refs.methods.find((m) => m.id === form.methodId);
+  const currentStatus = refs.statuses.find((s) => s.id === form.reimbursementStatusId);
+
   return (
-    <div className="min-h-full px-4 py-5 md:px-8 md:py-8">
+    <div className="min-h-full flex flex-col">
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
-      <div className="max-w-2xl mx-auto">
-        <Link
-          to="/expenses"
-          className="inline-flex items-center gap-1.5 text-[13px] text-stone-500 hover:text-stone-900 mb-4"
-        >
-          <ArrowLeft size={14} />
-          Back to expenses
-        </Link>
-
-        <header className="mb-6">
-          <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">
-            Expense
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mt-0.5">
-            {expense.amountFormatted}
-          </h1>
-          <div className="text-[12px] text-stone-500 mt-1">
-            Recorded {new Date(expense.createdAt).toLocaleString()}
-            {expense.rawInput && (
-              <>
-                {' · '}
-                <span className="font-mono">{expense.rawInput}</span>
-              </>
+      {/* Header band — design lines 1303–1317 */}
+      <header className="px-5 md:px-8 pt-4 md:pt-6 pb-4 md:pb-5 border-b border-line flex-shrink-0">
+        <div className="flex items-center justify-between mb-3">
+          <Link
+            to="/expenses"
+            className="inline-flex items-center gap-1.5 text-[11px] md:text-[11.5px] uppercase tracking-wider text-ink-3 font-semibold hover:text-ink"
+          >
+            <ArrowLeft size={13} />
+            Expense · {longDate(expense.transactionDate)}
+          </Link>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-[14px] font-mono text-ink-3">Rp</span>
+          <span className="font-mono text-[28px] md:text-[34px] font-bold tracking-tight leading-none tabular-nums">
+            {formatMajor(
+              minorToDecimalString(expense.amountMinor, expense.currency),
+              expense.currency,
             )}
+          </span>
+        </div>
+        {expense.rawInput && expense.rawInput.startsWith('=') && (
+          <div className="text-[11.5px] font-mono text-ink-3 mt-1">{expense.rawInput}</div>
+        )}
+        <div className="mt-3 text-[14px] md:text-[15px] font-medium text-ink">
+          {expense.description}
+        </div>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {currentCategory && <Chip token={currentCategory} size="md" />}
+          {currentMethod && <Chip token={currentMethod} size="md" />}
+          {currentStatus && <Chip token={currentStatus} size="md" />}
+        </div>
+      </header>
+
+      <div className="flex-1 min-h-0 overflow-y-auto pb-24 md:pb-20">
+        {/* Edit form */}
+        <section className="px-5 md:px-8 py-5 md:py-6 border-b border-line">
+          <div className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold mb-3">
+            Edit
           </div>
-        </header>
+          <div className="max-w-2xl flex flex-col gap-4">
+            <Field label="Amount">
+              <input
+                ref={amountInput.ref}
+                type="text"
+                inputMode="decimal"
+                value={form.amountInput}
+                onChange={amountInput.onChange}
+                placeholder="20000 or =20000*5"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-line bg-white text-[14px] font-medium tabular-nums outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition"
+              />
+              <p className="text-[11px] text-ink-3 mt-1">
+                Server re-evaluates the formula on save.
+              </p>
+            </Field>
 
-        <section className="flex flex-col gap-4">
-          <Field label="Amount">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={form.amountInput}
-              onChange={(e) =>
-                setForm((p) => (p ? { ...p, amountInput: e.target.value, amountTouched: true } : p))
-              }
-              placeholder="20000 or =20000*5"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 bg-white text-[14px] font-medium tabular-nums outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10"
+            <Field label="Description">
+              <input
+                type="text"
+                value={form.description}
+                onChange={(e) => setField('description', e.target.value)}
+                maxLength={280}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-line bg-white text-[14px] outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition"
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ReferenceSelect
+                api={categoriesApi}
+                label="Category"
+                singular="Category"
+                value={form.categoryId}
+                onChange={(v) => setField('categoryId', v)}
+                items={refs.categories}
+                onItemsChanged={(next) => setRefs({ ...refs, categories: [...next] })}
+              />
+              <ReferenceSelect
+                api={methodsApi}
+                label="Method"
+                singular="Method"
+                value={form.methodId}
+                onChange={(v) => setField('methodId', v)}
+                items={refs.methods}
+                onItemsChanged={(next) => setRefs({ ...refs, methods: [...next] })}
+              />
+            </div>
+
+            <ReferenceSelect
+              api={statusesApi}
+              label="Reimbursement label"
+              singular="Status"
+              value={form.reimbursementStatusId}
+              onChange={(v) => setField('reimbursementStatusId', v)}
+              items={refs.statuses}
+              onItemsChanged={(next) => setRefs({ ...refs, statuses: [...next] })}
             />
-            <p className="text-[11px] text-stone-400 mt-1">
-              Server re-evaluates the formula on save.
+            <p className="text-[11.5px] text-ink-3 -mt-2 border-l-2 border-line pl-3 py-1 leading-relaxed">
+              The <span className="font-semibold text-ink-2">label</span> is what shows in lists. The
+              actual reimbursement <span className="font-semibold text-ink-2">state</span> is
+              controlled below.
             </p>
-          </Field>
 
-          <ReferenceSelect
-            api={categoriesApi}
-            label="Category"
-            singular="Category"
-            value={form.categoryId}
-            onChange={(v) => setField('categoryId', v)}
-            items={refs.categories}
-            onItemsChanged={(next) => setRefs({ ...refs, categories: [...next] })}
-          />
-
-          <ReferenceSelect
-            api={methodsApi}
-            label="Method"
-            singular="Method"
-            value={form.methodId}
-            onChange={(v) => setField('methodId', v)}
-            items={refs.methods}
-            onItemsChanged={(next) => setRefs({ ...refs, methods: [...next] })}
-          />
-
-          <Field label="Description">
-            <input
-              type="text"
-              value={form.description}
-              onChange={(e) => setField('description', e.target.value)}
-              maxLength={280}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 bg-white text-[14px] outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10"
-            />
-          </Field>
-
-          <ReferenceSelect
-            api={statusesApi}
-            label="Reimbursement label"
-            singular="Status"
-            value={form.reimbursementStatusId}
-            onChange={(v) => setField('reimbursementStatusId', v)}
-            items={refs.statuses}
-            onItemsChanged={(next) => setRefs({ ...refs, statuses: [...next] })}
-          />
-          <p className="text-[11px] text-stone-500 -mt-2">
-            The label is what shows in lists. The actual reimbursement state is controlled below.
-          </p>
-
-          <Field label="Date">
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => setField('date', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 bg-white text-[14px] outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10"
-            />
-          </Field>
-
-          <div className="flex gap-2 mt-2">
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="flex-[2] py-2.5 rounded-lg text-[13px] font-semibold text-stone-50 bg-stone-900 hover:bg-stone-800 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingDelete(true)}
-              className="px-3 py-2.5 rounded-lg text-[13px] font-semibold text-rose-700 hover:bg-rose-50 border border-rose-200 inline-flex items-center gap-1.5"
-            >
-              <Trash2 size={14} />
-              Delete
-            </button>
+            <Field label="Date">
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setField('date', e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-line bg-white text-[14px] outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition"
+              />
+            </Field>
           </div>
         </section>
 
+        {/* Reimbursement state panel */}
         {reimbursement && (
-          <ReimbursementPanel
-            reimbursement={reimbursement}
-            onChanged={reloadReimbursement}
-            onError={(m) => showToast('error', m)}
-            onSuccess={(m) => showToast('success', m)}
-          />
+          <section className="px-5 md:px-8 py-5 md:py-6 border-b border-line">
+            <ReimbursementPanel
+              reimbursement={reimbursement}
+              onChanged={reloadReimbursement}
+              onError={(m) => showToast('error', m)}
+              onSuccess={(m) => showToast('success', m)}
+            />
+          </section>
         )}
 
-        {confirmingDelete && (
-          <ConfirmDelete
-            onCancel={() => setConfirmingDelete(false)}
-            onConfirm={() => void handleDelete()}
-            deleting={deleting}
-          />
-        )}
+        {/* Metadata */}
+        <section className="px-5 md:px-8 py-5 md:py-6">
+          <div className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold mb-2">
+            Metadata
+          </div>
+          <div className="grid grid-cols-[100px_minmax(0,1fr)] md:grid-cols-[140px_minmax(0,1fr)] gap-y-2 text-[12.5px]">
+            <div className="text-ink-3">Created</div>
+            <div className="text-ink-2 tabular-nums">{new Date(expense.createdAt).toLocaleString()}</div>
+            {expense.updatedAt !== expense.createdAt && (
+              <>
+                <div className="text-ink-3">Last edited</div>
+                <div className="text-ink-2 tabular-nums">
+                  {new Date(expense.updatedAt).toLocaleString()}
+                </div>
+              </>
+            )}
+            <div className="text-ink-3">ID</div>
+            <div className="text-ink-3 font-mono text-[11px] truncate">{expense.id}</div>
+          </div>
+        </section>
       </div>
+
+      {/* Footer action bar */}
+      <div className="fixed md:static bottom-16 md:bottom-auto inset-x-0 md:inset-x-auto border-t border-line bg-white px-5 md:px-8 py-3 flex items-center gap-2 flex-shrink-0 z-10">
+        <button
+          type="button"
+          onClick={() => setConfirmingDelete(true)}
+          className="px-3 py-2 rounded-lg border border-rose-200 text-[12.5px] font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5"
+        >
+          <Trash2 size={13} />
+          Delete
+        </button>
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="px-4 py-2 rounded-lg text-[12.5px] font-semibold text-paper bg-ink hover:bg-ink-2 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+
+      {confirmingDelete && (
+        <ConfirmDelete
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => void handleDelete()}
+          deleting={deleting}
+        />
+      )}
     </div>
   );
 }
 
-function Field({ label, children }: { readonly label: string; readonly children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  readonly label: string;
+  readonly children: React.ReactNode;
+}) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold">
-        {label}
-      </span>
+      <span className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold">{label}</span>
       {children}
     </label>
   );
@@ -394,13 +475,7 @@ function ReimbursementPanel({
 }) {
   const [pending, setPending] = useState<TransitionDef | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [date, setDate] = useState(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  });
+  const [date, setDate] = useState(() => isoToYmd(new Date().toISOString()));
 
   const transitions = legalTransitions(reimbursement.kind);
 
@@ -438,11 +513,11 @@ function ReimbursementPanel({
   };
 
   return (
-    <section className="mt-8 pt-6 border-t border-line">
-      <div className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-2">
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold mb-2">
         Reimbursement state
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <Chip
           token={{
             name: KIND_LABEL[reimbursement.kind],
@@ -452,21 +527,21 @@ function ReimbursementPanel({
           size="md"
         />
         {reimbursement.paidAt && (
-          <span className="text-[12px] text-stone-500">
+          <span className="text-[11.5px] text-ink-3">
             paid {new Date(reimbursement.paidAt).toLocaleDateString()}
           </span>
         )}
         {reimbursement.receivedAt && (
-          <span className="text-[12px] text-stone-500">
+          <span className="text-[11.5px] text-ink-3">
             received {new Date(reimbursement.receivedAt).toLocaleDateString()}
           </span>
         )}
       </div>
 
       {transitions.length === 0 ? (
-        <p className="text-[12px] text-stone-500 mt-3">Terminal state — no further transitions.</p>
+        <p className="text-[12px] text-ink-3">Terminal state — no further transitions.</p>
       ) : (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           {transitions.map((t) => (
             <button
               key={t.id}
@@ -480,10 +555,10 @@ function ReimbursementPanel({
                 }
               }}
               className={[
-                'px-3 py-2 rounded-lg text-[13px] font-medium border disabled:opacity-50',
+                'px-3 py-2 rounded-lg text-[13px] font-medium border disabled:opacity-50 transition',
                 t.variant === 'destructive'
                   ? 'border-rose-200 text-rose-700 hover:bg-rose-50'
-                  : 'border-stone-300 text-stone-900 hover:bg-stone-50',
+                  : 'border-line text-ink-2 hover:bg-paper-2',
               ].join(' ')}
             >
               {busy === t.id ? 'Working…' : t.label}
@@ -493,23 +568,33 @@ function ReimbursementPanel({
       )}
 
       {pending && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-stone-900/30">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
-            <h3 className="text-[15px] font-semibold mb-1">{pending.label}</h3>
-            <p className="text-[12px] text-stone-500 mb-3">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-ink/30">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[15px] font-semibold">{pending.label}</h3>
+              <button
+                type="button"
+                onClick={() => setPending(null)}
+                className="text-ink-3 hover:text-ink"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-[12px] text-ink-3 mb-3">
               Pick the {pending.needsDate === 'paidAt' ? 'payment' : 'receipt'} date.
             </p>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-stone-300 text-[14px] outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10"
+              className="w-full px-3 py-2.5 rounded-xl border border-line text-[14px] outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
             />
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
                 onClick={() => setPending(null)}
-                className="flex-1 py-2 rounded-lg border border-stone-300 text-[13px] font-medium hover:bg-stone-50"
+                className="flex-1 py-2 rounded-lg border border-line text-[13px] font-medium hover:bg-paper-2"
               >
                 Cancel
               </button>
@@ -517,7 +602,7 @@ function ReimbursementPanel({
                 type="button"
                 onClick={() => void run(pending, date)}
                 disabled={busy !== null}
-                className="flex-1 py-2 rounded-lg bg-stone-900 text-stone-50 text-[13px] font-semibold hover:bg-stone-800 disabled:opacity-50"
+                className="flex-1 py-2 rounded-lg bg-ink text-paper text-[13px] font-semibold hover:bg-ink-2 disabled:opacity-50"
               >
                 Apply
               </button>
@@ -525,7 +610,7 @@ function ReimbursementPanel({
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -539,17 +624,17 @@ function ConfirmDelete({
   readonly deleting: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-stone-900/30">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-ink/30">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
         <h3 className="text-[15px] font-semibold mb-2">Delete this expense?</h3>
-        <p className="text-[13px] text-stone-600 mb-4">
+        <p className="text-[13px] text-ink-2 mb-4">
           The expense and its reimbursement record will be removed. This can't be undone.
         </p>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-2 rounded-lg border border-stone-300 text-[13px] font-medium hover:bg-stone-50"
+            className="flex-1 py-2 rounded-lg border border-line text-[13px] font-medium hover:bg-paper-2"
           >
             Cancel
           </button>
