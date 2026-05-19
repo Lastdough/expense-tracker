@@ -2,8 +2,8 @@
 
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
-**Current milestone:** Phase 1 done — ready to start Phase 2 (auth, multi-user). Milestone J complete on `feature/milestone-j-sheets-import`: `POST /api/import` with dry-run + transactional commit, Sheets-format adapter (Bahasa dates, Rp+dot amounts, kebab→canonical reimbursement mapping), fuzzy "did you mean?" suggestions on unknown refs, `/import` page with file picker + per-row report + failed-rows CSV download. Smoke-tested against the user's real 103-row redacted CSV — all 103 rows valid + committed in one transaction; reimbursement aggregates auto-created via the existing `ExpenseRecorded` handler. H.4 (Receipt PDF) still deferred.
-**Last updated:** 2026-05-18
+**Current milestone:** Phase 1 done — ready to start Phase 2 (auth, multi-user). Milestone J complete on `feature/milestone-j-sheets-import`: `POST /api/import` with dry-run + transactional commit, Sheets-format adapter (Bahasa dates, Rp+dot amounts, kebab→canonical reimbursement mapping), fuzzy "did you mean?" suggestions on unknown refs, `/import` page with file picker + per-row report + failed-rows CSV download. Smoke-tested against the user's real 103-row redacted CSV — all 103 rows valid + committed in one transaction; reimbursement aggregates auto-created via the existing `ExpenseRecorded` handler. Also integrated on this branch: v2.1 DatePicker (replaces native `<input type="date">`) and v2.3 Simple receipt redesign (letterhead + print stylesheet closing the Milestone H gap; Export split-button; `?simple=false` Complex stub). H.4 (Receipt PDF) and the v2.3 Pending modal still deferred.
+**Last updated:** 2026-05-19
 
 ---
 
