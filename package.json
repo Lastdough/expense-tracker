@@ -1,7 +1,8 @@
 {
   "name": "expense-tracker",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "packageManager": "pnpm@10.11.1",
   "scripts": {
     "dev": "pnpm --filter server dev",
