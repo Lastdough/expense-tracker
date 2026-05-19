@@ -24,5 +24,8 @@ client/dist
 
 # for now
 # /docs/design/*
+/docs/domain/examples/*
+/docs/claude/
 .claude/insomnia/*
 .claude/plans/*
+.claude/skills

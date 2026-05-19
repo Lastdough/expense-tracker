@@ -59,6 +59,7 @@ import { ReferenceValidator } from './contexts/expenses/application/services/Ref
 import { DeleteExpense } from './contexts/expenses/application/use-cases/DeleteExpense.js';
 import { EditExpense } from './contexts/expenses/application/use-cases/EditExpense.js';
 import { GetExpense } from './contexts/expenses/application/use-cases/GetExpense.js';
+import { ImportExpenses } from './contexts/expenses/application/use-cases/ImportExpenses.js';
 import { ListExpenses } from './contexts/expenses/application/use-cases/ListExpenses.js';
 import { RecordExpense } from './contexts/expenses/application/use-cases/RecordExpense.js';
 import { PrismaExpenseRepository } from './contexts/expenses/infrastructure/persistence/prisma/PrismaExpenseRepository.js';
@@ -66,6 +67,10 @@ import {
   makeExpenseController,
   type ExpenseController,
 } from './contexts/expenses/interfaces/http/controllers/ExpenseController.js';
+import {
+  makeImportController,
+  type ImportController,
+} from './contexts/expenses/interfaces/http/controllers/ImportController.js';
 import {
   ExpenseDeleted,
   ExpenseRecorded,
@@ -115,6 +120,7 @@ export interface Container {
   readonly methodController: ReferenceController;
   readonly reimbursementStatusController: ReferenceController;
   readonly expenseController: ExpenseController;
+  readonly importController: ImportController;
   readonly reimbursementController: ReimbursementController;
   readonly monthlyBudgetController: MonthlyBudgetController;
   readonly reportingController: ReportingController;
@@ -163,17 +169,25 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
 
   // Expenses
   const expenseRepo = new PrismaExpenseRepository(prisma);
-  const referenceValidator = new ReferenceValidator(
-    new CategoryLookup(categoryRepo),
-    new MethodLookup(methodRepo),
-    new ReimbursementStatusLookup(reimbursementStatusRepo),
-  );
+  const categoryLookup = new CategoryLookup(categoryRepo);
+  const methodLookup = new MethodLookup(methodRepo);
+  const statusLookup = new ReimbursementStatusLookup(reimbursementStatusRepo);
+  const referenceValidator = new ReferenceValidator(categoryLookup, methodLookup, statusLookup);
   const expenseController = makeExpenseController({
     record: new RecordExpense(expenseRepo, referenceValidator, eventBus),
     list: new ListExpenses(expenseRepo),
     get: new GetExpense(expenseRepo),
     edit: new EditExpense(expenseRepo, referenceValidator, eventBus),
     delete: new DeleteExpense(expenseRepo, eventBus),
+  });
+  const importController = makeImportController({
+    importExpenses: new ImportExpenses(
+      expenseRepo,
+      categoryLookup,
+      methodLookup,
+      statusLookup,
+      eventBus,
+    ),
   });
 
   // Reimbursements
@@ -233,6 +247,7 @@ export async function buildContainer(config: AppConfig): Promise<Container> {
     methodController,
     reimbursementStatusController,
     expenseController,
+    importController,
     reimbursementController,
     monthlyBudgetController,
     reportingController,

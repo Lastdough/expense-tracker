@@ -3,6 +3,7 @@ import {
   Plus,
   Receipt,
   Settings,
+  Upload,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
@@ -20,5 +21,6 @@ export const NAV: ReadonlyArray<NavItem> = [
   { to: '/expenses', label: 'Expenses', shortLabel: 'Expenses', icon: WalletCards, kbd: 'E' },
   { to: '/dashboard', label: 'Dashboard', shortLabel: 'Insights', icon: BarChart3, kbd: 'D' },
   { to: '/receipt', label: 'Receipt', shortLabel: 'Receipt', icon: Receipt, kbd: 'R' },
+  { to: '/import', label: 'Import', shortLabel: 'Import', icon: Upload, kbd: 'I' },
   { to: '/settings', label: 'Settings', shortLabel: 'Settings', icon: Settings, kbd: ',' },
 ];

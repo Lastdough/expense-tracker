@@ -23,4 +23,5 @@ export const ReceiptQuery = z.object({
   dateStart: Iso,
   dateEnd: Iso,
   format: z.enum(['json', 'html', 'csv']).default('json'),
+  simple: z.coerce.boolean().default(true),
 });

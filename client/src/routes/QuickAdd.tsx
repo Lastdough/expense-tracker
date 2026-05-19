@@ -10,7 +10,10 @@ import type {
   ReferenceView,
   ReimbursementStatusView,
 } from '../api/types';
+import {BottomSheet, useIsMobile} from '../components/BottomSheet';
 import {ChipPicker} from '../components/ChipPicker';
+import {DatePicker, DateTrigger, fromIso, smartLabel, toIso} from '../components/DatePicker';
+import {Popover} from '../components/Popover';
 import {ReferenceSelect} from '../components/ReferenceSelect';
 import {Toast, type ToastState} from '../components/Toast';
 import {evaluateFormula, type FormulaResult} from '../lib/formulaEvaluator';
@@ -291,13 +294,7 @@ export default function QuickAdd() {
                 />
               </Section>
               <Section label="Date">
-                <input
-                  id="qa-date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-line bg-white text-[13px] font-medium outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition"
-                />
+                <DateField value={date} onChange={setDate}/>
               </Section>
             </div>
           </div>
@@ -372,6 +369,53 @@ export default function QuickAdd() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DateField({
+                     value,
+                     onChange,
+                   }: {
+  readonly value: string;
+  readonly onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const mobile = useIsMobile();
+  const dateObj = fromIso(value);
+  const label = smartLabel(dateObj);
+  const commit = (d: Date) => {
+    onChange(toIso(d));
+    setOpen(false);
+  };
+  const picker = (
+    <DatePicker
+      mode="single"
+      value={dateObj}
+      onChange={commit}
+      showFooter={!mobile}
+      inSheet={mobile}
+    />
+  );
+  return (
+    <div ref={anchorRef} className="relative">
+      <DateTrigger
+        id="qa-date"
+        value={label}
+        open={open}
+        onClick={() => setOpen((v) => !v)}
+        variant="md"
+      />
+      {mobile ? (
+        <BottomSheet open={open} onClose={() => setOpen(false)} title="Pick a date">
+          {picker}
+        </BottomSheet>
+      ) : (
+        <Popover open={open} anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          {picker}
+        </Popover>
+      )}
     </div>
   );
 }

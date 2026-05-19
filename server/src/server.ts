@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig, type AppConfig } from './config/env.js';
 import { buildContainer } from './container.js';
 import { expenseRoutes } from './contexts/expenses/interfaces/http/routes/expenseRoutes.js';
+import { importRoutes } from './contexts/expenses/interfaces/http/routes/importRoutes.js';
+import { MAX_CSV_BYTES } from './contexts/expenses/interfaces/http/schemas/importSchemas.js';
 import { referenceRoutes } from './contexts/categorization/interfaces/http/routes/referenceRoutes.js';
 import { reimbursementRoutes } from './contexts/reimbursements/interfaces/http/routes/reimbursementRoutes.js';
 import { monthlyBudgetRoutes } from './contexts/budgeting/interfaces/http/routes/monthlyBudgetRoutes.js';
@@ -48,7 +50,10 @@ async function main(): Promise<void> {
   }
 
   const app = express();
-  app.use(express.json());
+  // Default 100 KB is too small for Sheets-import payloads. MAX_CSV_BYTES is
+  // 2 MB; +1 KB headroom for the surrounding JSON envelope. Other endpoints
+  // are unaffected — they only ever see tiny payloads.
+  app.use(express.json({ limit: MAX_CSV_BYTES + 1024 }));
   app.use(makeCorsMiddleware(config.corsOrigins));
 
   app.get('/api/health', (_req, res) => {
@@ -56,6 +61,7 @@ async function main(): Promise<void> {
   });
 
   app.use('/api/expenses', expenseRoutes(container.expenseController));
+  app.use('/api/import', importRoutes(container.importController));
   app.use('/api/categories', referenceRoutes(container.categoryController));
   app.use('/api/methods', referenceRoutes(container.methodController));
   app.use('/api/reimbursement-statuses', referenceRoutes(container.reimbursementStatusController));

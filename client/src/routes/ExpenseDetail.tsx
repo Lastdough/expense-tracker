@@ -15,7 +15,10 @@ import type {
   ReimbursementStatusView,
   ReimbursementView,
 } from '../api/types';
+import { BottomSheet, useIsMobile } from '../components/BottomSheet';
 import { Chip } from '../components/Chip';
+import { DatePicker, DateTrigger, fromIso, smartLabel, toIso } from '../components/DatePicker';
+import { Popover } from '../components/Popover';
 import { ReferenceSelect } from '../components/ReferenceSelect';
 import { Toast, type ToastState } from '../components/Toast';
 import {
@@ -328,14 +331,10 @@ export default function ExpenseDetail() {
               controlled below.
             </p>
 
-            <Field label="Date">
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setField('date', e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-line bg-white text-[14px] outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition"
-              />
-            </Field>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold">Date</span>
+              <FormDateField value={form.date} onChange={(v) => setField('date', v)} />
+            </div>
           </div>
         </section>
 
@@ -584,11 +583,11 @@ function ReimbursementPanel({
             <p className="text-[12px] text-ink-3 mb-3">
               Pick the {pending.needsDate === 'paidAt' ? 'payment' : 'receipt'} date.
             </p>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-line text-[14px] outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
+            <DatePicker
+              mode="single"
+              value={fromIso(date)}
+              onChange={(d) => setDate(toIso(d))}
+              showFooter={false}
             />
             <div className="mt-4 flex gap-2">
               <button
@@ -609,6 +608,47 @@ function ReimbursementPanel({
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function FormDateField({
+  value,
+  onChange,
+}: {
+  readonly value: string;
+  readonly onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const mobile = useIsMobile();
+  const dateObj = fromIso(value);
+  const label = smartLabel(dateObj);
+  const commit = (d: Date) => {
+    onChange(toIso(d));
+    setOpen(false);
+  };
+  const picker = (
+    <DatePicker
+      mode="single"
+      value={dateObj}
+      onChange={commit}
+      showFooter={!mobile}
+      inSheet={mobile}
+    />
+  );
+  return (
+    <div ref={anchorRef} className="relative">
+      <DateTrigger value={label} open={open} onClick={() => setOpen((v) => !v)} variant="lg" />
+      {mobile ? (
+        <BottomSheet open={open} onClose={() => setOpen(false)} title="Pick a date">
+          {picker}
+        </BottomSheet>
+      ) : (
+        <Popover open={open} anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          {picker}
+        </Popover>
       )}
     </div>
   );

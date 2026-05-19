@@ -37,6 +37,12 @@ export interface ExpenseSearchResult {
  */
 export interface IExpenseRepository {
   save(expense: Expense): Promise<void>;
+  /**
+   * Atomic bulk-create used by Sheets import. All rows commit together or none
+   * do — implementations MUST wrap the writes in a database transaction.
+   * Does not upsert; callers must supply fresh IDs.
+   */
+  saveMany(expenses: readonly Expense[]): Promise<void>;
   delete(id: ExpenseId): Promise<void>;
   findById(id: ExpenseId): Promise<Expense | null>;
   /** Returns expenses with `transactionDate` in `[range.start, range.end)`. */

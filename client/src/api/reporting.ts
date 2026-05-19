@@ -9,7 +9,10 @@ import type {
 const ROOT = '/api/reports';
 
 function receiptQuery(dateStart: string, dateEnd: string, format: 'json' | 'html' | 'csv'): string {
-  return `?${new URLSearchParams({ dateStart, dateEnd, format }).toString()}`;
+  // `simple=true` is the default on the server today; carrying it explicitly
+  // here keeps the call sites self-documenting for the future Complex toggle
+  // (pass `simple=false` to opt in).
+  return `?${new URLSearchParams({ dateStart, dateEnd, format, simple: 'true' }).toString()}`;
 }
 
 export const reportingApi = {

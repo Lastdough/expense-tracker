@@ -46,6 +46,33 @@ export class PrismaExpenseRepository implements IExpenseRepository {
     });
   }
 
+  async saveMany(expenses: readonly Expense[]): Promise<void> {
+    if (expenses.length === 0) return;
+    const rows = expenses.map((e) => ExpenseMapper.toPersistence(e));
+    // One DB transaction → atomic commit. Plain createMany would also be
+    // atomic per Prisma docs, but explicit $transaction is unambiguous and
+    // matches the rollback guarantee Sheets import promises in PLAN.md.
+    await this.prisma.$transaction(
+      rows.map((row) =>
+        this.prisma.expense.create({
+          data: {
+            id: row.id,
+            transactionDate: row.transactionDate,
+            amountMinor: row.amountMinor,
+            currency: row.currency,
+            rawInput: row.rawInput,
+            description: row.description,
+            categoryId: row.categoryId,
+            methodId: row.methodId,
+            reimbursementStatusId: row.reimbursementStatusId,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          },
+        }),
+      ),
+    );
+  }
+
   async delete(id: ExpenseId): Promise<void> {
     await this.prisma.expense.delete({ where: { id } });
   }
