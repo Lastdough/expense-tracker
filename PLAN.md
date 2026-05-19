@@ -157,7 +157,7 @@ Deferred from H.3. Scheduled after Milestone I so the HTML layout is locked in b
 - [x] Per-row Zod validation, dry-run mode, transactional insert *(`ImportExpenses` use case; `IExpenseRepository.saveMany` added with Prisma `$transaction([...create])` for all-or-nothing commit; dry-run validates without persisting and without publishing events)*
 - [x] Return per-row success/error report *(per-row `{ rowNumber, status, raw, error: {code, field, message, suggestion}, expenseId }`; structural failures (missing column, malformed CSV) return 422/400 with no rows)*
 - [x] Frontend page to upload CSV, show results, retry failed rows *(`/import` route; native file picker + default-year input; validate / Import all buttons; per-row results table with truncation + inline error message; "Download failed rows" re-emits the original Sheets format plus an `Error` column for fix-and-retry)*
-- [x] Smoke test with the user's actual Sheets export *(redacted 103-row CSV in `docs/domain/`; all rows parsed + reference-resolved + committed in one DB transaction against the live local SQLite; reporting/reimbursement contexts picked up the events end-to-end; cleanup done post-smoke)*
+- [x] Smoke test with the user's actual Sheets export *(103-row CSV exercised against the live local SQLite; all rows parsed + reference-resolved + committed in one DB transaction; reporting/reimbursement contexts picked up the events end-to-end; cleanup done post-smoke)*
 
 **Phase 1 done when:** the user has imported their historical Sheets data and is using the app daily instead of Sheets. **✅ Met 2026-05-18** — the Sheets-import path works end-to-end against the user's real CSV format; daily-driver use depends only on the user's own habit-switch.
 

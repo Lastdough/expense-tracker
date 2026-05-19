@@ -7,7 +7,7 @@ import { InvalidSheetsRowError } from '../../domain/errors/SheetsImportErrors.js
  * The CSV is shaped by years of practical use, not by us:
  *   Days, Transaction Date, Out (Rp.), Description, Category, Method, Reimbursement
  *
- * Quirks the parser MUST tolerate (see `docs/domain/Expenses Apr 26 Redacted Data.csv`):
+ * Quirks the parser MUST tolerate:
  *   • Dates in Bahasa, no year                → "23 Apr", "6 Mei", "30 Mar"  (year supplied via input)
  *   • Amounts in IDR `Rp` notation, negative  → "Rp7.630.945", "-Rp11.999.000"
  *   • Negative amount === Early Reimbursement → trust the Reimbursement column, take abs() of amount
