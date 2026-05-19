@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Download, FileText, Loader2, Printer } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Download, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
 
 import { ApiError } from '../api/http';
 import { reportingApi } from '../api/reporting';
@@ -38,6 +38,8 @@ function ymdToLocalIso(ymd: string, endOfDay: boolean): string {
   return dt.toISOString();
 }
 
+const DEBOUNCE_MS = 400;
+
 export default function Receipt() {
   const [dateStart, setDateStart] = useState(firstOfThisMonthYmd());
   const [dateEnd, setDateEnd] = useState(todayYmd());
@@ -49,12 +51,22 @@ export default function Receipt() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastIdRef = useRef(0);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // True between "user clicked Print without a preview ready" and the iframe
+  // finishing its load — `onIframeLoad` reads this and fires print() once
+  // the (possibly still-in-flight) srcDoc is fully parsed.
+  const pendingPrintRef = useRef(false);
+  // Monotonic counter so stale fetches (debounced or superseded) skip the
+  // state writes when a newer fetch has started.
+  const requestVersionRef = useRef(0);
+  // Pending debounce timer, kept in a ref so handlePrint can cancel it.
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // First mount fetches immediately; subsequent date changes debounce.
+  const isFirstRunRef = useRef(true);
 
-  const generate = async () => {
+  const fetchPreview = async (): Promise<boolean> => {
+    const version = ++requestVersionRef.current;
     setLoading(true);
     setErrorBanner(null);
-    setReceipt(null);
-    setHtml(null);
     const isoStart = ymdToLocalIso(dateStart, false);
     const isoEnd = ymdToLocalIso(dateEnd, true);
     try {
@@ -62,9 +74,12 @@ export default function Receipt() {
         reportingApi.receiptJson(isoStart, isoEnd),
         reportingApi.receiptHtml(isoStart, isoEnd),
       ]);
+      if (version !== requestVersionRef.current) return false;
       setReceipt(json);
       setHtml(htmlBody);
+      return true;
     } catch (e) {
+      if (version !== requestVersionRef.current) return false;
       const msg =
         e instanceof ApiError
           ? e.code === 'mixed_currency_in_range'
@@ -74,17 +89,41 @@ export default function Receipt() {
             ? e.message
             : 'Failed to generate receipt';
       setErrorBanner(msg);
+      setReceipt(null);
+      setHtml(null);
+      pendingPrintRef.current = false;
+      return false;
     } finally {
-      setLoading(false);
+      if (version === requestVersionRef.current) setLoading(false);
     }
   };
+
+  // Auto-preview: refetch on date-range change. First run fires immediately
+  // so the iframe populates on mount; later changes debounce so rapid date
+  // edits don't thrash the API.
+  useEffect(() => {
+    pendingPrintRef.current = false;
+    const delay = isFirstRunRef.current ? 0 : DEBOUNCE_MS;
+    isFirstRunRef.current = false;
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      void fetchPreview();
+    }, delay);
+    return () => {
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
+  }, [dateStart, dateEnd]);
 
   const showToast = (kind: ToastState['kind'], message: string) => {
     toastIdRef.current += 1;
     setToast({ id: toastIdRef.current, kind, message });
   };
 
-  const print = () => {
+  const printIframe = () => {
     const w = iframeRef.current?.contentWindow;
     if (!w) {
       showToast('error', 'Could not access print preview');
@@ -92,6 +131,33 @@ export default function Receipt() {
     }
     w.focus();
     w.print();
+  };
+
+  const onIframeLoad = () => {
+    if (pendingPrintRef.current) {
+      pendingPrintRef.current = false;
+      // Defer one tick so layout settles before opening the print dialog.
+      setTimeout(printIframe, 0);
+    }
+  };
+
+  const handlePrint = async () => {
+    if (html && !loading) {
+      printIframe();
+      return;
+    }
+    // Race: user hit Print before the debounced auto-preview finished (or
+    // fired). Cancel the pending debounce, fetch now, and let onIframeLoad
+    // pick up the print intent.
+    pendingPrintRef.current = true;
+    if (debounceRef.current !== null) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (!loading) {
+      const ok = await fetchPreview();
+      if (!ok) pendingPrintRef.current = false;
+    }
   };
 
   const csvUrl = reportingApi.receiptCsvUrl(
@@ -109,7 +175,7 @@ export default function Receipt() {
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
       {/* Header */}
-      <header className="px-5 md:px-8 pt-5 md:pt-6 pb-4 md:pb-5 border-b border-line flex items-baseline justify-between gap-3 flex-shrink-0">
+      <header className="px-5 md:px-8 pt-5 md:pt-6 pb-4 md:pb-5 border-b border-line flex items-center justify-between gap-3 flex-shrink-0">
         <div>
           <div className="text-[11px] md:text-[11.5px] uppercase tracking-wider text-ink-3 font-semibold">
             Receipt export
@@ -118,35 +184,9 @@ export default function Receipt() {
             Build a receipt
           </h1>
         </div>
-        {receipt && (
-          <div className="hidden md:flex items-center gap-2">
-            <a
-              href={csvUrl}
-              download
-              className="px-3 py-1.5 rounded-lg border border-line bg-white text-[12.5px] font-medium text-ink-2 hover:border-ink-3 inline-flex items-center gap-1.5"
-            >
-              <Download size={13} />
-              CSV
-            </a>
-            <button
-              type="button"
-              onClick={print}
-              className="px-3 py-1.5 rounded-lg border border-line bg-white text-[12.5px] font-medium text-ink-2 hover:border-ink-3 inline-flex items-center gap-1.5"
-            >
-              <Printer size={13} />
-              Print
-            </button>
-            <button
-              type="button"
-              disabled
-              title="PDF export ships with Milestone H.4"
-              className="px-4 py-1.5 rounded-lg bg-ink/40 text-paper text-[12.5px] font-semibold cursor-not-allowed inline-flex items-center gap-1.5"
-            >
-              <Download size={13} />
-              PDF
-            </button>
-          </div>
-        )}
+        <div className="hidden md:block">
+          <ExportMenu csvUrl={csvUrl} loading={loading} onPrint={() => void handlePrint()} />
+        </div>
       </header>
 
       {/* Body */}
@@ -164,15 +204,15 @@ export default function Receipt() {
             />
           </Section>
 
-          <button
-            type="button"
-            onClick={() => void generate()}
-            disabled={loading}
-            className="py-2.5 rounded-xl bg-ink text-paper text-[13px] font-semibold hover:bg-ink-2 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
-          >
-            {loading ? <Loader2 className="animate-spin" size={14} /> : <FileText size={14} />}
-            {loading ? 'Generating…' : 'Generate receipt'}
-          </button>
+          {/* Mobile-only — full-width split button placed where Generate was. */}
+          <div className="md:hidden">
+            <ExportMenu
+              csvUrl={csvUrl}
+              loading={loading}
+              onPrint={() => void handlePrint()}
+              fullWidth
+            />
+          </div>
 
           {receipt && (
             <div className="rounded-xl border border-line bg-white p-3.5">
@@ -189,32 +229,10 @@ export default function Receipt() {
             </div>
           )}
 
-          {receipt && (
-            <div className="md:hidden flex gap-2">
-              <a
-                href={csvUrl}
-                download
-                className="flex-1 py-2.5 rounded-xl border border-line bg-white text-[13px] font-medium text-ink-2 inline-flex items-center justify-center gap-1.5"
-              >
-                <Download size={13} />
-                CSV
-              </a>
-              <button
-                type="button"
-                onClick={print}
-                className="flex-1 py-2.5 rounded-xl border border-line bg-white text-[13px] font-medium text-ink-2 inline-flex items-center justify-center gap-1.5"
-              >
-                <Printer size={13} />
-                Print
-              </button>
-            </div>
-          )}
-
           <div className="text-[11px] text-ink-3 leading-relaxed border-t border-line pt-3 mt-auto hidden md:block">
-            Pick a date range and tap{' '}
-            <span className="font-semibold text-ink-2">Generate</span> to render the printable
-            receipt on the right. CSV downloads the same data for spreadsheet imports. PDF ships
-            with Milestone H.4.
+            The preview updates as you change the range. Use the Export menu for{' '}
+            <span className="font-semibold text-ink-2">CSV</span> or{' '}
+            <span className="font-semibold text-ink-2">Print</span>. PDF ships with Milestone H.4.
           </div>
         </aside>
 
@@ -226,21 +244,32 @@ export default function Receipt() {
             </div>
           )}
 
-          {!receipt && !errorBanner && !loading && (
+          {!receipt && !errorBanner && (
             <div className="max-w-[640px] mx-auto text-center py-16">
-              <div className="text-[13px] text-ink-3">
-                The preview appears here once you tap{' '}
-                <span className="font-semibold text-ink-2">Generate receipt</span>.
-              </div>
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin mx-auto text-ink-3" size={20} />
+                  <div className="text-[13px] text-ink-3 mt-2">Loading preview…</div>
+                </>
+              ) : (
+                <div className="text-[13px] text-ink-3">No preview yet.</div>
+              )}
             </div>
           )}
 
           {receipt && html && (
-            <div className="max-w-[640px] mx-auto bg-white border border-line shadow-[0_18px_48px_-18px_rgba(0,0,0,.18)] rounded-md overflow-hidden">
+            <div className="max-w-[640px] mx-auto bg-white border border-line shadow-[0_18px_48px_-18px_rgba(0,0,0,.18)] rounded-md overflow-hidden relative">
+              {loading && (
+                <div className="absolute top-2 right-2 z-10 px-2 py-1 rounded-md bg-white/90 border border-line text-[10.5px] uppercase tracking-wider text-ink-3 font-semibold inline-flex items-center gap-1.5 shadow-sm">
+                  <Loader2 className="animate-spin" size={11} />
+                  Updating
+                </div>
+              )}
               <iframe
                 ref={iframeRef}
                 title="Receipt preview"
                 srcDoc={html}
+                onLoad={onIframeLoad}
                 className="w-full h-[70vh] md:h-[78vh] bg-white"
               />
             </div>
@@ -279,12 +308,118 @@ function Section({ label, children }: { readonly label: string; readonly childre
   );
 }
 
-function FieldInline({ label, children }: { readonly label: string; readonly children: React.ReactNode }) {
+interface ExportMenuProps {
+  readonly csvUrl: string;
+  readonly loading: boolean;
+  readonly onPrint: () => void;
+  readonly fullWidth?: boolean;
+}
+
+/**
+ * Split button matching `docs/design/v2.3/receipt-print.jsx <ExportMenu>`.
+ *
+ * Primary slot is "Export PDF" rendered visibly disabled (the H.4 milestone
+ * delivers the actual PDF). Chevron opens a popover (desktop) or bottom
+ * sheet (mobile) with Print and CSV actions. The preview is kept live by
+ * the page's debounced auto-fetch, so menu items always operate on the
+ * current range.
+ */
+function ExportMenu({ csvUrl, loading, onPrint, fullWidth = false }: ExportMenuProps) {
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const mobile = useIsMobile();
+
+  const handlePrint = () => {
+    setOpen(false);
+    onPrint();
+  };
+  const handleCsv = () => {
+    setOpen(false);
+  };
+
+  const sheetFrame = mobile
+    ? 'p-2'
+    : 'w-[260px] bg-white rounded-xl border border-line p-1.5 shadow-[0_18px_48px_-16px_rgba(40,30,20,0.28),0_2px_6px_rgba(40,30,20,0.06)]';
+
+  const menuItems = (
+    <div role="menu" className={sheetFrame}>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={handlePrint}
+        className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-paper-2 text-[13px]"
+      >
+        <span className="w-8 h-8 rounded-lg bg-paper-2 inline-flex items-center justify-center text-ink-2 flex-shrink-0">
+          <Printer size={15} />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block font-semibold text-ink">Print…</span>
+          <span className="block text-[11px] text-ink-3">System dialog · uses @media print</span>
+        </span>
+      </button>
+      <a
+        role="menuitem"
+        href={csvUrl}
+        download
+        onClick={handleCsv}
+        className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-paper-2 text-[13px]"
+      >
+        <span className="w-8 h-8 rounded-lg bg-paper-2 inline-flex items-center justify-center text-ink-2 flex-shrink-0">
+          <FileSpreadsheet size={15} />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block font-semibold text-ink">Download CSV</span>
+          <span className="block text-[11px] text-ink-3">For spreadsheets · raw rows</span>
+        </span>
+      </a>
+      <div className="h-px bg-line my-1 mx-1.5" />
+      <div className="px-2 py-2 text-[11px] text-ink-3 leading-snug">
+        <span className="font-semibold text-ink-2">PDF</span> ships with Milestone H.4.
+      </div>
+    </div>
+  );
+
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold">{label}</span>
-      {children}
-    </label>
+    <div ref={anchorRef} className={`relative ${fullWidth ? 'w-full' : 'inline-block'}`}>
+      <div className={`inline-flex ${fullWidth ? 'w-full' : ''}`}>
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="PDF export ships with Milestone H.4"
+          className={`px-4 py-2.5 rounded-l-xl bg-ink/45 text-paper text-[13px] font-semibold cursor-not-allowed inline-flex items-center justify-center gap-1.5 ${
+            fullWidth ? 'flex-1' : ''
+          }`}
+        >
+          {loading ? <Loader2 className="animate-spin" size={14} /> : <Download size={14} />}
+          Export PDF
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Other export options"
+          className="px-2.5 py-2.5 rounded-r-xl bg-ink text-paper border-l border-paper/20 hover:bg-ink-2 inline-flex items-center justify-center"
+        >
+          <ChevronDown size={14} />
+        </button>
+      </div>
+      {mobile ? (
+        <BottomSheet open={open} onClose={() => setOpen(false)} title="Export">
+          {menuItems}
+        </BottomSheet>
+      ) : (
+        <Popover
+          open={open}
+          anchorRef={anchorRef}
+          onClose={() => setOpen(false)}
+          placement="bottom-end"
+        >
+          {menuItems}
+        </Popover>
+      )}
+    </div>
   );
 }
 

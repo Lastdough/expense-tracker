@@ -105,7 +105,7 @@ export function makeReportingController(deps: ReportingControllerDeps): Reportin
       switch (query.data.format) {
         case 'html':
           res.set('Content-Type', 'text/html; charset=utf-8');
-          res.send(renderReceiptHtml(receipt));
+          res.send(renderReceiptHtml(receipt, { simple: query.data.simple }));
           return;
         case 'csv': {
           const filename = `receipt-${query.data.dateStart.slice(0, 10)}_${query.data.dateEnd.slice(0, 10)}.csv`;

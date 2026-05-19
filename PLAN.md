@@ -3,7 +3,11 @@
 The roadmap. For architectural rules, see `CLAUDE.md`.
 
 **Current milestone:** Phase 1 / Milestone J — Sheets import. (Milestone I complete: API clients + client formula evaluator + ReferenceSelect, Quick-Add, Expenses list with URL-synced filters, Expense detail/edit with reimbursement transition controls, Settings Budget tab, Receipt page with HTML iframe + CSV download, Dashboard tiles. H.4 — Receipt PDF — still deferred, run after I as scheduled.)
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-19
+
+### v2.3 sub-branches (running alongside Milestone J)
+
+- `feature/v2.3-receipt-redesign` — Receipt v2.3 Simple letterhead + print stylesheet (close Milestone H print-stylesheet gap); Export action group becomes a split-button (Print / CSV via menu, PDF stays disabled). `?simple=false` returns a Complex stub. **Out of scope on this branch:** PDF (H.4), Pending data plumbing (kept on the deferred v2.3 Pending modal branch), Complex visual layout.
 
 ---
 
