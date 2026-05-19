@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Expense Tracker · v2.3 (simple/complex receipt toggle)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --color-ink: #0a0908;
+      --color-ink-2: #44403c;
+      --color-ink-3: #78716c;
+      --color-paper: #fafaf7;
+      --color-paper-2: #f2efe8;
+      --color-line: #e3ddd0;
+      --color-accent: #c96442;
+    }
+    body { font-family: var(--font-sans); background: #eeece5; color: var(--color-ink); }
+    .canvas-bg {
+      background:
+        radial-gradient(circle at 1px 1px, rgba(0,0,0,0.05) 1px, transparent 0) 0 0 / 28px 28px,
+        #eeece5;
+    }
+    [data-screen-label]:focus-visible { outline: none }
+
+    /* ── Page typography ──────────────────────────────────────────── */
+    .sec-title { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--color-ink-3); }
+    .sec-h2    { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; color: var(--color-ink); }
+    .sec-sub   { font-size: 12.5px; color: var(--color-ink-3); line-height: 1.6; max-width: 56ch; }
+
+    /* ── Artboards ────────────────────────────────────────────────── */
+    .artboard {
+      background: white; border-radius: 16px;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 32px -16px rgba(0,0,0,0.16);
+    }
+    .artboard-label {
+      font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 600; color: rgba(60,50,40,0.7); font-family: var(--font-mono);
+    }
+    .artboard-mono { font-family: var(--font-mono); font-size: 11px; color: rgba(60,50,40,0.7); }
+
+    /* ── Kbd / pills / callouts ───────────────────────────────────── */
+    .kbd {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 22px; height: 22px; padding: 0 5px;
+      border: 1px solid var(--color-line); border-bottom-width: 2px;
+      border-radius: 4px; background: white;
+      font-family: var(--font-mono); font-size: 11px; color: var(--color-ink-2);
+    }
+    .callout-pin {
+      width: 22px; height: 22px; border-radius: 999px; background: var(--color-accent); color: white;
+      font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono);
+      box-shadow: 0 0 0 3px rgba(201,100,66,0.18);
+    }
+    .anno {
+      font-size: 11.5px; line-height: 1.55; color: var(--color-ink-2);
+    }
+    .anno b { color: var(--color-ink); font-weight: 600; }
+
+    /* ── Chip primitive (status, category, method) ────────────────── */
+    .chip {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+      line-height: 1.4;
+      font-family: var(--font-sans);
+      white-space: nowrap;
+    }
+    .chip-sm { padding: 1px 6px; font-size: 10px; }
+
+    /* ── Paper sheet (print preview) ─────────────────────────────── */
+    /* Tabloid-ish proportions — A4 portrait at ~96dpi-ish; we draw it at
+       a fixed pixel width and let height be intrinsic. The "page break"
+       lines are CSS-only paint so we can see the rules visually. */
+    .sheet {
+      width: 480px;                /* ~A4 at our preview scale */
+      background: white;
+      color: var(--color-ink);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 18px 40px -20px rgba(0,0,0,0.22);
+      font-size: 11px;
+      line-height: 1.5;
+      position: relative;
+      border-radius: 2px;
+    }
+    .sheet--gap { margin-bottom: 26px; }      /* between paginated sheets */
+    .sheet-edge {
+      /* Thin paper edge ruler outside the sheet, with crop marks */
+      position: absolute; top: -1px; left: -1px; right: -1px; bottom: -1px;
+      pointer-events: none;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .sheet-pagenum {
+      font-family: var(--font-mono); font-size: 10px; color: var(--color-ink-3);
+      position: absolute; right: -42px; top: 14px;
+      letter-spacing: 0.08em;
+    }
+    /* "tear line" — the paint-only break between paginated sheets */
+    .sheet-break {
+      position: relative;
+      height: 22px; margin: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sheet-break::before {
+      content: ''; position: absolute; left: 12px; right: 12px; top: 50%;
+      border-top: 1.5px dashed var(--color-line);
+    }
+    .sheet-break > span {
+      position: relative; background: #eeece5; padding: 0 10px;
+      font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em;
+      color: var(--color-ink-3); text-transform: uppercase;
+    }
+
+    /* ── Receipt body grid ───────────────────────────────────────── */
+    .rcpt-grid {
+      display: grid;
+      grid-template-columns: 56px 1fr 70px 90px;
+      gap: 0 10px;
+      font-size: 10.5px;
+    }
+    .rcpt-grid > .rcpt-head {
+      font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 700; color: var(--color-ink-3);
+      padding: 6px 0; border-bottom: 1px solid var(--color-ink);
+    }
+    .rcpt-row > div { padding: 4px 0; border-bottom: 1px solid #ececec; }
+    .rcpt-row.subtotal > div {
+      border-bottom: none; border-top: 1px solid var(--color-line);
+      padding-top: 5px; padding-bottom: 8px;
+      font-weight: 700;
+    }
+    .rcpt-row.early .amt { color: #0b4c6b; }
+    .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+    /* ── Simple receipt grid (3 cols) ────────────────────────────── */
+    .simple-grid {
+      display: grid;
+      grid-template-columns: 1fr 90px 90px;
+      gap: 0 14px;
+      font-size: 11px;
+    }
+    .simple-grid > .rcpt-head {
+      font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 700; color: var(--color-ink-3);
+      padding: 6px 0; border-bottom: 1px solid var(--color-ink);
+    }
+
+    /* ── Receipt-mode toggle (pill, ripped from Pass 1) ──────────── */
+    .mode-toggle {
+      display: inline-flex; padding: 3px;
+      border: 1px solid var(--color-line); background: white;
+      border-radius: 999px;
+    }
+    .mode-toggle button {
+      padding: 5px 14px; font-size: 12px; font-weight: 600;
+      border-radius: 999px; color: var(--color-ink-3);
+      transition: background .15s ease, color .15s ease;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-sans);
+      cursor: pointer;
+    }
+    .mode-toggle button.on { background: var(--color-ink); color: var(--color-paper); }
+    .mode-toggle button:not(.on):hover { color: var(--color-ink); }
+    .mode-toggle .dot {
+      width: 6px; height: 6px; border-radius: 999px;
+      background: currentColor; opacity: 0.55;
+    }
+    .mode-toggle button.on .dot { opacity: 1; }
+
+    /* ── CSV preview ─────────────────────────────────────────────── */
+    .csv {
+      font-family: var(--font-mono); font-size: 11px; line-height: 1.55;
+      color: var(--color-ink-2);
+      background: var(--color-paper);
+      border: 1px solid var(--color-line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .csv .h { color: var(--color-ink); font-weight: 700; }
+    .csv .q { color: #0b4c6b; }
+    .csv .n { color: var(--color-accent); }
+
+    /* ── Export menu ─────────────────────────────────────────────── */
+    .menu {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      width: 240px; background: white;
+      border: 1px solid var(--color-line); border-radius: 12px;
+      box-shadow: 0 18px 48px -16px rgba(40,30,20,0.28), 0 2px 6px rgba(40,30,20,0.06);
+      padding: 6px;
+      z-index: 5;
+    }
+    .menu-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 8px; border-radius: 8px;
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+    .menu-row:hover { background: var(--color-paper-2); }
+    .menu-row .ico {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--color-paper-2);
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--color-ink-2);
+      flex-shrink: 0;
+    }
+    .menu-row .meta { font-size: 11px; color: var(--color-ink-3); font-family: var(--font-mono); }
+    .menu-sep { height: 1px; background: var(--color-line); margin: 4px 6px; }
+
+    /* ── Status timeline (Pending) ────────────────────────────────── */
+    .tl-rail { position: relative; padding-left: 26px; }
+    .tl-rail::before {
+      content: ''; position: absolute; left: 9px; top: 6px; bottom: 6px;
+      width: 1.5px; background: var(--color-line);
+    }
+    .tl-node {
+      position: absolute; left: 2px; width: 16px; height: 16px;
+      border-radius: 999px; background: white; border: 1.5px solid var(--color-ink-3);
+    }
+    .tl-node.active { background: var(--color-ink); border-color: var(--color-ink); }
+    .tl-node.pending { background: white; border-color: var(--color-accent); }
+    .tl-node.future { border-style: dashed; }
+    .tl-item { position: relative; padding-bottom: 14px; }
+
+    /* ── Note card (sticky-note vibe, but restrained) ─────────────── */
+    .note-card {
+      background: #fffaef;
+      border: 1px solid #f1e3bb;
+      border-left: 3px solid #d5b663;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11.5px;
+      color: var(--color-ink-2);
+      line-height: 1.5;
+      max-width: 36ch;
+    }
+    .note-card .lbl {
+      font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.14em;
+      font-weight: 700; color: #8a6c11; margin-bottom: 2px;
+      font-family: var(--font-mono);
+    }
+
+    /* Range-row continuous tint background — applied to the weekday row container so it flows */
+    .range-row { position: relative; }
+
+    /* ── Print rules legend ───────────────────────────────────────── */
+    .rule-grid { display: grid; grid-template-columns: 28px 1fr; gap: 10px 14px; }
+    .rule-grid .num-pin {
+      width: 24px; height: 24px; border-radius: 6px; background: var(--color-ink);
+      color: var(--color-paper); font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .rule-grid code {
+      font-family: var(--font-mono); font-size: 10.5px;
+      background: var(--color-paper); padding: 1px 5px; border-radius: 4px;
+      color: var(--color-ink-2);
+    }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+</head>
+<body class="canvas-bg">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react" src="data.jsx"></script>
+<script type="text/babel" data-presets="react" src="receipt-print.jsx"></script>
+<script type="text/babel" data-presets="react" src="simple-receipt.jsx"></script>
+<script type="text/babel" data-presets="react" src="pending-modal.jsx"></script>
+<script type="text/babel" data-presets="react" src="app.jsx"></script>
+</body>
+</html>
