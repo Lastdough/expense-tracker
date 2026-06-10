@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Filter, Loader2, Plus, Search } from 'lucide-react';
+import { Download, Filter, Loader2, Plus, Search } from 'lucide-react';
 
 import { categoriesApi, methodsApi, statusesApi } from '../api/categorization';
 import { expensesApi } from '../api/expenses';
+import { reportingApi } from '../api/reporting';
 import { ApiError } from '../api/http';
 import type {
   CategoryView,
@@ -265,6 +266,16 @@ export default function Expenses() {
             <Filter size={13} />
             {filtersOpen ? 'Hide filters' : 'Filters'}
           </button>
+          <a
+            href={reportingApi.exportAllCsvUrl()}
+            download
+            className="inline-flex items-center justify-center w-9 h-9 md:w-auto md:h-auto md:gap-1.5 md:px-3 md:py-1.5 rounded-full md:rounded-lg border border-line bg-white text-ink-2 md:text-[12.5px] md:font-medium hover:border-ink-3"
+            aria-label="Export all expenses as CSV"
+            title="Export all expenses as CSV"
+          >
+            <Download size={13} />
+            <span className="hidden md:inline">Export</span>
+          </a>
           <Link
             to="/quick-add"
             className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink text-paper text-[12.5px] font-semibold hover:bg-ink-2"

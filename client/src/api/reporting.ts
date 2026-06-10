@@ -30,4 +30,5 @@ export const reportingApi = {
     http.getText(`${ROOT}/receipt${receiptQuery(dateStart, dateEnd, 'html')}`),
   receiptCsvUrl: (dateStart: string, dateEnd: string) =>
     absoluteUrl(`${ROOT}/receipt${receiptQuery(dateStart, dateEnd, 'csv')}`),
+  exportAllCsvUrl: () => absoluteUrl(`${ROOT}/export`),
 };
