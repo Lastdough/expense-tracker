@@ -1,8 +1,8 @@
-import { type Result } from '../../../../shared-kernel/result/Result.js';
-import { MixedCurrencyInRangeError } from '../errors/ReportingErrors.js';
-import { type MonthlySummary } from '../value-objects/MonthlySummary.js';
-import { type NetOwedSnapshot } from '../value-objects/NetOwed.js';
-import { type Receipt } from '../value-objects/Receipt.js';
+import {type Result} from '../../../../shared-kernel/result/Result.js';
+import {MixedCurrencyInRangeError} from '../errors/ReportingErrors.js';
+import {type MonthlySummary} from '../value-objects/MonthlySummary.js';
+import {type NetOwedSnapshot} from '../value-objects/NetOwed.js';
+import {type ExportData, type Receipt} from '../value-objects/Receipt.js';
 
 /**
  * Read-side repository for the reporting context. Implementations query the
@@ -26,4 +26,6 @@ export interface IReportingReadRepository {
     start: Date;
     end: Date;
   }): Promise<Result<Receipt, MixedCurrencyInRangeError>>;
+
+  exportAllData(): Promise<Result<ExportData, MixedCurrencyInRangeError>>
 }

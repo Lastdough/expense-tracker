@@ -25,3 +25,7 @@ export const ReceiptQuery = z.object({
   format: z.enum(['json', 'html', 'csv']).default('json'),
   simple: z.coerce.boolean().default(true),
 });
+
+export const ExportAllDataQuery = z.object({
+  simple: z.coerce.boolean().default(true),
+});

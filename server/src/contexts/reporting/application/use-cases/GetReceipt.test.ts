@@ -5,10 +5,13 @@ import { MixedCurrencyInRangeError } from '../../domain/errors/ReportingErrors.j
 import { type IReportingReadRepository } from '../../domain/repositories/IReportingReadRepository.js';
 import { type MonthlySummary } from '../../domain/value-objects/MonthlySummary.js';
 import { type NetOwedSnapshot } from '../../domain/value-objects/NetOwed.js';
-import { type Receipt } from '../../domain/value-objects/Receipt.js';
-import { GetReceipt } from './GetReceipt.js';
+import { ExportData, type Receipt} from '../../domain/value-objects/Receipt.js';
+import {GetReceipt} from './GetReceipt.js';
 
 class FakeRepo implements IReportingReadRepository {
+  exportAllData(): Promise<Result<ExportData, MixedCurrencyInRangeError>> {
+      throw new Error('Method not implemented.');
+  }
   receiptResult: Result<Receipt, MixedCurrencyInRangeError> = ok({
     dateStart: new Date(0),
     dateEnd: new Date(0),

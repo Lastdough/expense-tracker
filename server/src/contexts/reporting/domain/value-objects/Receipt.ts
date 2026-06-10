@@ -27,3 +27,22 @@ export interface Receipt {
   readonly lines: readonly ReceiptLine[];
   readonly grandTotal: Money | null;
 }
+
+export interface ExportDataLine {
+  readonly transactionDate: Date;
+  readonly total: Money;
+  readonly out: Money;
+  readonly formula: string;
+  readonly unpaidTotal: Money;
+  readonly earlyTotal: Money;
+  readonly description: string;
+  readonly category: string;
+  readonly method: string;
+  readonly reimbursementStatus: string
+}
+
+
+export interface ExportData {
+  readonly currency: string | null;
+  readonly lines: readonly ExportDataLine[];
+}

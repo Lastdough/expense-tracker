@@ -6,8 +6,12 @@ import { type IReportingReadRepository } from '../../domain/repositories/IReport
 import { type MonthlySummary } from '../../domain/value-objects/MonthlySummary.js';
 import { type NetOwedSnapshot } from '../../domain/value-objects/NetOwed.js';
 import { GetNetOwed } from './GetNetOwed.js';
+import { ExportData } from '../../domain/value-objects/Receipt.js';
 
 class FakeRepo implements IReportingReadRepository {
+  exportAllData(): Promise<Result<ExportData, MixedCurrencyInRangeError>> {
+      throw new Error('Method not implemented.');
+  }
   netOwedResult: Result<NetOwedSnapshot, MixedCurrencyInRangeError> = ok({
     dateStart: new Date(0),
     dateEnd: new Date(0),

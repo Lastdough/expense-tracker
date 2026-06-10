@@ -10,18 +10,24 @@ import { type MonthlySummary } from '../../domain/value-objects/MonthlySummary.j
 import { type NetOwedSnapshot } from '../../domain/value-objects/NetOwed.js';
 import { GetAvailableBudget } from './GetAvailableBudget.js';
 import { GetNetOwed } from './GetNetOwed.js';
+import { ExportData } from '../../domain/value-objects/Receipt.js';
 
 class FakeBudgetRepo implements IMonthlyBudgetRepository {
   current: MonthlyBudget | null = null;
+
   async get(): Promise<MonthlyBudget | null> {
     return this.current;
   }
+
   async save(b: MonthlyBudget): Promise<void> {
     this.current = b;
   }
 }
 
 class FakeReportingRepo implements IReportingReadRepository {
+  exportAllData(): Promise<Result<ExportData, MixedCurrencyInRangeError>> {
+      throw new Error('Method not implemented.');
+  }
   snapshot: Result<NetOwedSnapshot, MixedCurrencyInRangeError> = ok({
     dateStart: new Date(0),
     dateEnd: new Date(0),

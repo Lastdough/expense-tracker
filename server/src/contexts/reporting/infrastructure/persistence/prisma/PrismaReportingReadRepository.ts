@@ -11,7 +11,7 @@ import {
   type MonthlySummary,
 } from '../../../domain/value-objects/MonthlySummary.js';
 import { type NetOwedSnapshot } from '../../../domain/value-objects/NetOwed.js';
-import { type Receipt, type ReceiptLine } from '../../../domain/value-objects/Receipt.js';
+import { type ExportData, type Receipt, type ReceiptLine } from '../../../domain/value-objects/Receipt.js';
 
 /**
  * Read-only Prisma-backed implementation. Reads Expense + Category + Method
@@ -42,7 +42,7 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
       const list = currencies.map((c) => c.currency).join(', ');
       return err(
         new MixedCurrencyInRangeError(
-          `Cannot summarize ${range.month}: range contains mixed currencies (${list})`,
+          `Cannot summarize ${ range.month }: range contains mixed currencies (${ list })`,
         ),
       );
     }
@@ -50,7 +50,7 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
     const currency = first.currency;
     if (!isCurrency(currency)) {
       throw new RangeError(
-        `PrismaReportingReadRepository: persisted currency "${currency}" is not supported`,
+        `PrismaReportingReadRepository: persisted currency "${ currency }" is not supported`,
       );
     }
 
@@ -151,7 +151,7 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
       const list = [...currencySet].join(', ');
       return err(
         new MixedCurrencyInRangeError(
-          `Cannot compute netOwed: range contains mixed currencies (${list})`,
+          `Cannot compute netOwed: range contains mixed currencies (${ list })`,
         ),
       );
     }
@@ -159,7 +159,7 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
     const [currencyRaw] = currencySet;
     if (currencyRaw === undefined || !isCurrency(currencyRaw)) {
       throw new RangeError(
-        `PrismaReportingReadRepository: persisted currency "${currencyRaw}" is not supported`,
+        `PrismaReportingReadRepository: persisted currency "${ currencyRaw }" is not supported`,
       );
     }
     const currency = currencyRaw;
@@ -188,6 +188,100 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
     });
   }
 
+  async exportAllData(): Promise<Result<ExportData, MixedCurrencyInRangeError>> {
+    const queryRows = await this.prisma.reimbursement.findMany({
+      select: {
+        kind: true,
+        expense: {
+          select: {
+            amountMinor: true,
+            currency: true,
+            description: true,
+            rawInput: true,
+            transactionDate: true,
+            // Fetching the related tables (assuming they have a 'name' field)
+            category: { select: { name: true } },
+            method: { select: { name: true } },
+            reimbursementStatus: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    if (queryRows.length === 0) {
+      return ok(emptyData());
+    }
+
+    const rows = queryRows.map((row) => {
+      if (!row.expense) throw new Error("Reimbursement is missing expense data");
+
+      return {
+        kind: row.kind,
+        amountMinor: row.expense.amountMinor,
+        currency: row.expense.currency,
+        description: row.expense.description,
+        transactionDate: row.expense.transactionDate,
+        category: row.expense.category?.name || 'Unknown',
+        method: row.expense.method?.name || 'Unknown',
+        reimbursement: row.expense.reimbursementStatus?.name || 'Unknown',
+        rawInput: row.expense.rawInput || '',
+      };
+    });
+
+    const currencySet = new Set(rows.map((r) => r.currency));
+    if (currencySet.size > 1) {
+      const list = [...currencySet].join(', ');
+      return err(
+        new MixedCurrencyInRangeError(
+          `Cannot export data: range contains mixed currencies (${ list })`,
+        ),
+      );
+    }
+    const [currencyRaw] = currencySet;
+    if (currencyRaw === undefined || !isCurrency(currencyRaw)) {
+      throw new RangeError(
+        `PrismaReportingReadRepository: persisted currency "${ currencyRaw }" is not supported`,
+      );
+    }
+    const currency = currencyRaw;
+
+    // 4. Map each row directly to a line item (NO GROUPING)
+    const lines = rows.map((row) => {
+      // Capture the actual amount regardless of status
+      const actualAmount = Money.fromMinor(row.amountMinor, currency);
+
+      // Keep your existing total logic for the "Unpaid/Early" split
+      let unpaidMinor = 0n;
+      let earlyMinor = 0n;
+
+      if (row.kind === 'UnpaidReimbursable') unpaidMinor = row.amountMinor;
+      else if (row.kind === 'EarlyReimbursement') earlyMinor = row.amountMinor;
+
+      return {
+        description: row.description,
+        transactionDate: row.transactionDate,
+        category: row.category,
+        method: row.method,
+        reimbursementStatus: row.reimbursement,
+        out: actualAmount, // New: The true value of the transaction
+        unpaidTotal: Money.fromMinor(unpaidMinor, currency),
+        earlyTotal: Money.fromMinor(earlyMinor, currency),
+        total: Money.fromMinor(unpaidMinor, currency).subtract(Money.fromMinor(earlyMinor, currency)),
+        formula: row.rawInput,
+      };
+    });
+
+    // Since we aren't grouping, sorting by Date (newest first) usually
+    // makes the most sense for a flat ledger, instead of sorting by total.
+    lines.sort((a, b) => b.transactionDate.getTime() - a.transactionDate.getTime());
+
+
+    return ok({
+      currency,
+      lines,
+    });
+  }
+
   async getReceipt(range: {
     start: Date;
     end: Date;
@@ -212,14 +306,14 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
       const list = [...currencySet].join(', ');
       return err(
         new MixedCurrencyInRangeError(
-          `Cannot build receipt: range contains mixed currencies (${list})`,
+          `Cannot build receipt: range contains mixed currencies (${ list })`,
         ),
       );
     }
     const [currencyRaw] = currencySet;
     if (currencyRaw === undefined || !isCurrency(currencyRaw)) {
       throw new RangeError(
-        `PrismaReportingReadRepository: persisted currency "${currencyRaw}" is not supported`,
+        `PrismaReportingReadRepository: persisted currency "${ currencyRaw }" is not supported`,
       );
     }
     const currency = currencyRaw;
@@ -230,6 +324,7 @@ export class PrismaReportingReadRepository implements IReportingReadRepository {
       unpaidCount: number;
       earlyCount: number;
     }
+
     const byDesc = new Map<string, Acc>();
     for (const row of rows) {
       const key = row.expense.description;
@@ -308,6 +403,13 @@ function emptyReceipt(range: { start: Date; end: Date }): Receipt {
     currency: null,
     lines: [],
     grandTotal: null,
+  };
+}
+
+function emptyData(): ExportData {
+  return {
+    currency: null,
+    lines: [],
   };
 }
 

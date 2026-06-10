@@ -78,8 +78,8 @@ interface Filters {
 
 function defaultFilters(): Filters {
   return {
-    dateStart: firstOfThisMonthYmd(),
-    dateEnd: todayYmd(),
+    dateStart: '', // Changed to empty string
+    dateEnd: '',   // Changed to empty string
     categoryId: ALL,
     methodId: ALL,
     statusId: ALL,
@@ -113,8 +113,10 @@ function filtersToParams(f: Filters): URLSearchParams {
 
 function filtersToQuery(f: Filters, limit: number, offset: number): ListExpensesQuery {
   return {
-    dateStart: ymdToLocalIso(f.dateStart, false),
-    dateEnd: ymdToLocalIso(f.dateEnd, true),
+    // Only send dates if the string is not empty
+    ...(f.dateStart ? { dateStart: ymdToLocalIso(f.dateStart, false) } : {}),
+    ...(f.dateEnd ? { dateEnd: ymdToLocalIso(f.dateEnd, true) } : {}),
+
     ...(f.categoryId !== ALL ? { categoryId: f.categoryId } : {}),
     ...(f.methodId !== ALL ? { methodId: f.methodId } : {}),
     ...(f.statusId !== ALL ? { reimbursementStatusId: f.statusId } : {}),
