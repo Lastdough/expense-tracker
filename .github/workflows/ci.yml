@@ -26,7 +26,11 @@ jobs:
       # Generate the Prisma client so tsc/vitest/build can resolve
       # `@prisma/client` types. Defaults to the sqlite schema and needs no
       # database connection — `generate` reads the schema, it doesn't connect.
+      # DATABASE_URL is still required: prisma.config.ts resolves env('DATABASE_URL')
+      # at load time and errors if unset. A dummy sqlite URL satisfies it.
       - name: Generate Prisma client
+        env:
+          DATABASE_URL: file:./ci.db
         run: pnpm --filter server db:generate
 
       - name: Enforce dependency rule (CLAUDE.md)
