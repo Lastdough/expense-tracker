@@ -23,6 +23,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Generate the Prisma client so tsc/vitest/build can resolve
+      # `@prisma/client` types. Defaults to the sqlite schema and needs no
+      # database connection — `generate` reads the schema, it doesn't connect.
+      - name: Generate Prisma client
+        run: pnpm --filter server db:generate
+
       - name: Enforce dependency rule (CLAUDE.md)
         run: pnpm lint:deps
 
