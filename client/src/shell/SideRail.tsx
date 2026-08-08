@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 import { reportingApi } from '../api/reporting';
 import type { NetOwedView } from '../api/types';
+import { todayYmd } from '../lib/date';
 import { formatMoney } from '../lib/money';
 import { NAV } from './nav';
 
@@ -10,11 +11,16 @@ interface SideRailProps {
   readonly className?: string;
 }
 
+// Half-open UTC range for the current month. Built in UTC to match the
+// server's `MonthRange`, and the upper bound is the first instant of next
+// month rather than 23:59:59.999 — server filters are half-open (`gte`/`lt`),
+// so the old bound both drifted by the local offset and clipped the last day.
 function monthRangeIso(): { startIso: string; endIso: string } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-  return { startIso: start.toISOString(), endIso: end.toISOString() };
+  const [y, m] = todayYmd().split('-').map(Number);
+  return {
+    startIso: new Date(Date.UTC(y!, m! - 1, 1)).toISOString(),
+    endIso: new Date(Date.UTC(y!, m!, 1)).toISOString(),
+  };
 }
 
 export function SideRail({ className = '' }: SideRailProps) {

@@ -25,48 +25,23 @@ import {
 import { Popover } from '../components/Popover';
 import { Toast, type ToastState } from '../components/Toast';
 import { formatMoney } from '../lib/money';
+import {
+  longDayLabel,
+  shortDayLabel,
+  todayYmd,
+  ymdFromIso,
+  ymdToExclusiveEndIso,
+  ymdToIso,
+} from '../lib/date';
 
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
 const ALL = '__all__';
 
-function localYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 function firstOfThisMonthYmd(): string {
-  const now = new Date();
-  return localYmd(new Date(now.getFullYear(), now.getMonth(), 1));
-}
-function todayYmd(): string {
-  return localYmd(new Date());
-}
-function ymdToLocalIso(ymd: string, endOfDay: boolean): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  if (!y || !m || !d) return new Date().toISOString();
-  const localDate = endOfDay
-    ? new Date(y, m - 1, d, 23, 59, 59, 999)
-    : new Date(y, m - 1, d, 0, 0, 0, 0);
-  return localDate.toISOString();
+  return `${todayYmd().slice(0, 7)}-01`;
 }
 
-const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  return `${DOW_SHORT[d.getDay()]} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
-}
-function longDate(iso: string): string {
-  const d = new Date(iso);
-  return `${DOW_SHORT[d.getDay()]}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
-}
-function localYmdFromIso(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 interface Filters {
   readonly dateStart: string;
@@ -115,8 +90,8 @@ function filtersToParams(f: Filters): URLSearchParams {
 function filtersToQuery(f: Filters, limit: number, offset: number): ListExpensesQuery {
   return {
     // Only send dates if the string is not empty
-    ...(f.dateStart ? { dateStart: ymdToLocalIso(f.dateStart, false) } : {}),
-    ...(f.dateEnd ? { dateEnd: ymdToLocalIso(f.dateEnd, true) } : {}),
+    ...(f.dateStart ? { dateStart: ymdToIso(f.dateStart) } : {}),
+    ...(f.dateEnd ? { dateEnd: ymdToExclusiveEndIso(f.dateEnd) } : {}),
 
     ...(f.categoryId !== ALL ? { categoryId: f.categoryId } : {}),
     ...(f.methodId !== ALL ? { methodId: f.methodId } : {}),
@@ -376,7 +351,7 @@ function DesktopRow({
       className="grid items-center px-8 py-2.5 border-b border-line/60 text-[13px] hover:bg-paper-2/60 transition"
       style={{ gridTemplateColumns: TABLE_GRID }}
     >
-      <div className="text-ink-3 font-mono text-[12px]">{shortDate(e.transactionDate)}</div>
+      <div className="text-ink-3 font-mono text-[12px]">{shortDayLabel(e.transactionDate)}</div>
       <div className="font-medium text-ink truncate pr-3">{e.description}</div>
       <div>
         <RefChip refs={refs} kind="category" id={e.categoryId} />
@@ -405,7 +380,7 @@ function MobileGrouped({
   const groups = useMemo(() => {
     const m = new Map<string, ExpenseView[]>();
     for (const e of items) {
-      const key = localYmdFromIso(e.transactionDate);
+      const key = ymdFromIso(e.transactionDate);
       const arr = m.get(key) ?? [];
       arr.push(e);
       m.set(key, arr);
@@ -422,7 +397,7 @@ function MobileGrouped({
           <div key={ymd}>
             <div className="px-5 pt-4 pb-1.5 flex items-baseline justify-between">
               <div className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold">
-                {longDate(`${ymd}T00:00:00`)}
+                {longDayLabel(ymdToIso(ymd))}
               </div>
               <div className="text-[11px] font-mono text-ink-3 tabular-nums">
                 {formatMoney({ amountMinor: dayTotalMinor.toString(), currency })}
