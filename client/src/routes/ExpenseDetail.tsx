@@ -27,7 +27,7 @@ import {
   formatMajor,
   minorToDecimalString,
 } from '../lib/money';
-import { longDayLabel, todayYmd, ymdFromIso, ymdToIso } from '../lib/date';
+import { formatIsoDay, longDayLabel, todayYmd, ymdFromIso, ymdToIso } from '../lib/date';
 import { useFormattedAmount } from '../lib/useFormattedAmount';
 
 interface RefData {
@@ -511,12 +511,12 @@ function ReimbursementPanel({
         />
         {reimbursement.paidAt && (
           <span className="text-[11.5px] text-ink-3">
-            paid {new Date(reimbursement.paidAt).toLocaleDateString()}
+            paid {formatIsoDay(reimbursement.paidAt, {})}
           </span>
         )}
         {reimbursement.receivedAt && (
           <span className="text-[11.5px] text-ink-3">
-            received {new Date(reimbursement.receivedAt).toLocaleDateString()}
+            received {formatIsoDay(reimbursement.receivedAt, {})}
           </span>
         )}
       </div>
