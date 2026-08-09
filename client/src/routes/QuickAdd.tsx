@@ -16,6 +16,7 @@ import {DatePicker, DateTrigger, fromIso, smartLabel, toIso} from '../components
 import {Popover} from '../components/Popover';
 import {ReferenceSelect} from '../components/ReferenceSelect';
 import {Toast, type ToastState} from '../components/Toast';
+import {longDayLabel, todayYmd, ymdToIso} from '../lib/date';
 import {evaluateFormula, type FormulaResult} from '../lib/formulaEvaluator';
 import {currencyDecimals, extractRawAmount, formatMoney} from '../lib/money';
 import {useFormattedAmount} from '../lib/useFormattedAmount';
@@ -26,26 +27,8 @@ const NON_REIMBURSABLE_NAME = 'Non-Reimbursable';
 const NEW_CHIP_DEFAULT_BG = '#e8eaed';
 const NEW_CHIP_DEFAULT_TEXT = '#000000';
 
-function todayIso(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function dateInputToIso(dateInput: string): string {
-  const [y, m, d] = dateInput.split('-').map((n) => Number(n));
-  if (!y || !m || !d) return new Date().toISOString();
-  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
-}
-
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 function longDate(): string {
-  const d = new Date();
-  return `${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return longDayLabel(ymdToIso(todayYmd()));
 }
 
 interface ReferenceDataState {
@@ -65,7 +48,7 @@ export default function QuickAdd() {
   const [categoryId, setCategoryId] = useLastUsed<string | null>('quickAdd:categoryId', null);
   const [methodId, setMethodId] = useLastUsed<string | null>('quickAdd:methodId', null);
   const [statusId, setStatusId] = useLastUsed<string | null>('quickAdd:statusId', null);
-  const [date, setDate] = useLastUsed<string>('quickAdd:date', todayIso());
+  const [date, setDate] = useLastUsed<string>('quickAdd:date', todayYmd());
 
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -150,7 +133,7 @@ export default function QuickAdd() {
     setSubmitting(true);
     try {
       await expensesApi.record({
-        transactionDate: dateInputToIso(date),
+        transactionDate: ymdToIso(date),
         amountInput: extractRawAmount(amount, CURRENCY).trim(),
         description: description.trim(),
         categoryId,

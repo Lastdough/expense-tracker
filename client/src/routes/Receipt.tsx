@@ -14,28 +14,11 @@ import {
 } from '../components/DatePicker';
 import { Popover } from '../components/Popover';
 import { Toast, type ToastState } from '../components/Toast';
+import { todayYmd, ymdToExclusiveEndIso, ymdToIso } from '../lib/date';
 import { formatMoney } from '../lib/money';
 
-function localYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 function firstOfThisMonthYmd(): string {
-  const now = new Date();
-  return localYmd(new Date(now.getFullYear(), now.getMonth(), 1));
-}
-function todayYmd(): string {
-  return localYmd(new Date());
-}
-function ymdToLocalIso(ymd: string, endOfDay: boolean): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  if (!y || !m || !d) return new Date().toISOString();
-  const dt = endOfDay
-    ? new Date(y, m - 1, d, 23, 59, 59, 999)
-    : new Date(y, m - 1, d, 0, 0, 0, 0);
-  return dt.toISOString();
+  return `${todayYmd().slice(0, 7)}-01`;
 }
 
 const DEBOUNCE_MS = 400;
@@ -67,8 +50,8 @@ export default function Receipt() {
     const version = ++requestVersionRef.current;
     setLoading(true);
     setErrorBanner(null);
-    const isoStart = ymdToLocalIso(dateStart, false);
-    const isoEnd = ymdToLocalIso(dateEnd, true);
+    const isoStart = ymdToIso(dateStart);
+    const isoEnd = ymdToExclusiveEndIso(dateEnd);
     try {
       const [json, htmlBody] = await Promise.all([
         reportingApi.receiptJson(isoStart, isoEnd),
@@ -161,8 +144,8 @@ export default function Receipt() {
   };
 
   const csvUrl = reportingApi.receiptCsvUrl(
-    ymdToLocalIso(dateStart, false),
-    ymdToLocalIso(dateEnd, true),
+    ymdToIso(dateStart),
+    ymdToExclusiveEndIso(dateEnd),
   );
 
   const grandTotalLabel =

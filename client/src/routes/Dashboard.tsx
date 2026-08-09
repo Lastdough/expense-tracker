@@ -11,29 +11,40 @@ import type {
 } from '../api/types';
 import { Chip } from '../components/Chip';
 import { Toast, type ToastState } from '../components/Toast';
+import { formatYmd, todayYmd } from '../lib/date';
 import { formatMoney } from '../lib/money';
 
+// Month bounds are built in UTC to match the server's `MonthRange`; a local
+// bound sends a start seven hours before the month begins at WIB, so an
+// expense dated the 1st lands in the previous bucket. See lib/date.ts.
 function currentMonthString(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // The local clock decides which month the user is *in* — same reasoning as
+  // `todayYmd`. Only bounds derived from the label are UTC.
+  return todayYmd().slice(0, 7);
 }
+function parseMonth(month: string): { y: number; m: number } {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month) ?? /^(\d{4})-(\d{2})$/.exec(currentMonthString());
+  if (!match) return { y: 1970, m: 1 };
+  return { y: Number(match[1]), m: Number(match[2]) };
+}
+// Pure ordinal arithmetic, no `Date`, so no timezone can influence the result.
 function shiftMonth(month: string, by: number): string {
-  const [y, m] = month.split('-').map(Number);
-  const d = new Date(y ?? 1970, (m ?? 1) - 1 + by, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const p = parseMonth(month);
+  const ordinal = p.y * 12 + (p.m - 1) + by;
+  const y = Math.floor(ordinal / 12);
+  const m = ordinal - y * 12 + 1;
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}`;
 }
+/** Half-open UTC range [first-of-month, first-of-next-month). */
 function monthBounds(month: string): { startIso: string; endIso: string } {
-  const [y, m] = month.split('-').map(Number);
-  const start = new Date(y ?? 1970, (m ?? 1) - 1, 1, 0, 0, 0, 0);
-  const end = new Date(y ?? 1970, m ?? 1, 0, 23, 59, 59, 999);
-  return { startIso: start.toISOString(), endIso: end.toISOString() };
+  const p = parseMonth(month);
+  return {
+    startIso: new Date(Date.UTC(p.y, p.m - 1, 1)).toISOString(),
+    endIso: new Date(Date.UTC(p.y, p.m, 1)).toISOString(),
+  };
 }
 function monthLabel(month: string): string {
-  const [y, m] = month.split('-').map(Number);
-  return new Date(y ?? 1970, (m ?? 1) - 1, 1).toLocaleDateString(undefined, {
-    month: 'long',
-    year: 'numeric',
-  });
+  return formatYmd(`${month}-01`, { month: 'long', year: 'numeric' });
 }
 
 export default function Dashboard() {

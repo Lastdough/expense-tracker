@@ -27,6 +27,7 @@ import {
   formatMajor,
   minorToDecimalString,
 } from '../lib/money';
+import { formatIsoDay, longDayLabel, todayYmd, ymdFromIso, ymdToIso } from '../lib/date';
 import { useFormattedAmount } from '../lib/useFormattedAmount';
 
 interface RefData {
@@ -45,23 +46,6 @@ interface FormState {
   readonly date: string;
 }
 
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function longDate(iso: string): string {
-  const d = new Date(iso);
-  return `${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-function isoToYmd(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function ymdToIso(ymd: string): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  if (!y || !m || !d) return new Date().toISOString();
-  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
-}
 function buildInitialForm(e: ExpenseView): FormState {
   return {
     // If the user typed a formula it stays editable. Otherwise show the value
@@ -75,7 +59,7 @@ function buildInitialForm(e: ExpenseView): FormState {
     categoryId: e.categoryId,
     methodId: e.methodId,
     reimbursementStatusId: e.reimbursementStatusId,
-    date: isoToYmd(e.transactionDate),
+    date: ymdFromIso(e.transactionDate),
   };
 }
 
@@ -164,7 +148,7 @@ export default function ExpenseDetail() {
     if (form.reimbursementStatusId !== expense.reimbursementStatusId) {
       draft.reimbursementStatusId = form.reimbursementStatusId;
     }
-    if (form.date !== isoToYmd(expense.transactionDate)) {
+    if (form.date !== ymdFromIso(expense.transactionDate)) {
       draft.transactionDate = ymdToIso(form.date);
     }
     if (Object.keys(draft).length === 0) {
@@ -238,7 +222,7 @@ export default function ExpenseDetail() {
             className="inline-flex items-center gap-1.5 text-[11px] md:text-[11.5px] uppercase tracking-wider text-ink-3 font-semibold hover:text-ink"
           >
             <ArrowLeft size={13} />
-            Expense · {longDate(expense.transactionDate)}
+            Expense · {longDayLabel(expense.transactionDate)}
           </Link>
         </div>
         <div className="flex items-baseline gap-2">
@@ -474,7 +458,7 @@ function ReimbursementPanel({
 }) {
   const [pending, setPending] = useState<TransitionDef | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [date, setDate] = useState(() => isoToYmd(new Date().toISOString()));
+  const [date, setDate] = useState(() => todayYmd());
 
   const transitions = legalTransitions(reimbursement.kind);
 
@@ -527,12 +511,12 @@ function ReimbursementPanel({
         />
         {reimbursement.paidAt && (
           <span className="text-[11.5px] text-ink-3">
-            paid {new Date(reimbursement.paidAt).toLocaleDateString()}
+            paid {formatIsoDay(reimbursement.paidAt, {})}
           </span>
         )}
         {reimbursement.receivedAt && (
           <span className="text-[11.5px] text-ink-3">
-            received {new Date(reimbursement.receivedAt).toLocaleDateString()}
+            received {formatIsoDay(reimbursement.receivedAt, {})}
           </span>
         )}
       </div>

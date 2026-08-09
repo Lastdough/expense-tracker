@@ -305,6 +305,18 @@ Seed these on first run. Colors are exact and must match.
 - Animations via `motion/react`, used sparingly and purposefully.
 - Icons: `lucide-react` first; Google Material Symbols only when lucide lacks a fitting icon.
 
+### Dates are calendar days in UTC
+
+A transaction date is a **calendar day**, and its canonical instant is **midnight UTC** of that day. The server already defines months this way (`reporting/domain/value-objects/MonthRange.ts`), and the client must match.
+
+- All calendar-day handling goes through `client/src/lib/date.ts`. Do not hand-roll it in a route file.
+- **Never** write `new Date(y, m - 1, d).toISOString()`. At UTC+7 that persists the previous day at 17:00Z and the server buckets it into the month before. Use `ymdToIso`.
+- **Never** read a stored date back with `getFullYear`/`getMonth`/`getDate`, and never `toLocaleDateString` it without `timeZone: 'UTC'`. Use `ymdFromIso`, `shortDayLabel`, `longDayLabel`, `formatIsoDay`.
+- Range upper bounds are **exclusive** — server filters are half-open (`gte: start, lt: end`). Use `ymdToExclusiveEndIso`, never `23:59:59.999`.
+- The one exception: `todayYmd()` reads the **local** clock, because "what day is it for the person using the app" is a human fact. Only instants *derived* from a `YYYY-MM-DD` / `YYYY-MM` label are UTC.
+- Audit timestamps (`createdAt`, `updatedAt`) are real instants, not calendar days — render those in local time as usual.
+- `DatePicker`'s `toIso`/`fromIso` are a self-consistent local-`Date` ↔ `YYYY-MM-DD` pair and never produce an instant; the instant is minted by `ymdToIso` at the call site. Leave them alone.
+
 ### The Quick-Add screen is sacred
 
 This is the daily driver and the reason this app exists at all. Performance and ergonomics here outweigh every other UI consideration.
